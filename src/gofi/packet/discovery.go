@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 )
 
 // Discovery TLV Types
 const (
 	MAC             uint8 = 1
+	IPInfo          uint8 = 2
 	FirmwareVersion uint8 = 3
 	Uptime          uint8 = 0xA
 	Hostname        uint8 = 0x0B
@@ -20,10 +22,11 @@ const (
 // Discovery represents the information in a discovery packet.
 type Discovery struct {
 	PktSize uint16
-	RawTLVs []*TLV
+	RawTLVs []*TLV `json:"-"`
 
 	MAC      [6]byte
 	Hostname string
+	IPInfo   net.Addr
 
 	Platform        string
 	FirmwareVersion string
@@ -66,9 +69,9 @@ func (d *Discovery) Debug() {
 }
 
 // DiscoveryDecode decodes a discovery packet from a ubiquiti device.
-func DiscoveryDecode(pkt []byte) (*Discovery, error) {
+func DiscoveryDecode(addr *net.UDPAddr, pkt []byte) (*Discovery, error) {
 	r := bytes.NewBuffer(pkt)
-	out := Discovery{}
+	out := Discovery{IPInfo: addr}
 
 	magic := make([]byte, 2)
 	n, err := io.ReadFull(r, magic)
