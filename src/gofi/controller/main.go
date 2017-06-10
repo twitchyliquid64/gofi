@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
-	"gofi/packet"
+	"gofi/udpserv"
 	"log"
-	"net"
 	"os"
 )
 
@@ -19,29 +18,15 @@ func CheckError(err error) {
 func main() {
 	log.Println("Started")
 
-	/* Lets prepare a address at any address at port 10001*/
-	ServerAddr, err := net.ResolveUDPAddr("udp", ":10001")
-	CheckError(err)
-
-	/* Now listen at selected port */
-	ServerConn, err := net.ListenUDP("udp", ServerAddr)
-	CheckError(err)
-	defer ServerConn.Close()
-
-	buf := make([]byte, 8192)
+	serv, err := udpserv.New()
+	if err != nil {
+		log.Printf("Failed to start UDP server: %s", err)
+		os.Exit(1)
+	}
+	defer serv.Close()
 
 	for {
-		n, addr, err := ServerConn.ReadFromUDP(buf)
-		if err != nil {
-			fmt.Printf("Failed ReadFromUDP(): %s\n", err)
-			break
-		}
-		fmt.Printf("Recieved %d bytes from %s\n", n, addr)
-		discovery, err := packet.DiscoveryDecode(buf[:n])
-		if err != nil {
-			fmt.Printf("Error decoding discovery: %s\n", err)
-		} else {
-			discovery.Debug()
-		}
+		discoveryPkt := serv.Read()
+		discoveryPkt.Debug()
 	}
 }
