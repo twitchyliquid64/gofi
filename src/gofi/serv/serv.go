@@ -9,10 +9,16 @@ import (
 	"net/http"
 )
 
+type informHandler interface {
+	HandleInform(*packet.Inform)
+}
+
 // Serv represents a running server
 type Serv struct {
-	listenAddr       *net.UDPAddr
-	serverConn       *net.UDPConn
+	listenAddr    *net.UDPAddr
+	serverConn    *net.UDPConn
+	informHandler informHandler
+
 	DiscoveryPackets chan *packet.Discovery
 
 	httpServ *http.Server
@@ -21,10 +27,11 @@ type Serv struct {
 }
 
 // New creates a new server bound to the Ubiquiti discovery port and the given port for the HTTP server.
-func New(httpListener string) (*Serv, error) {
+func New(ihandler informHandler, httpListener string) (*Serv, error) {
 	out := Serv{
 		close:            make(chan bool),
 		DiscoveryPackets: make(chan *packet.Discovery, 1),
+		informHandler:    ihandler,
 	}
 	var err error
 
@@ -53,9 +60,12 @@ func (s *Serv) makeHTTPServer(listener string) {
 		io.WriteString(w, "hello world\n")
 	})
 	http.HandleFunc("/inform", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Got inform")
 		informPkt, err := packet.InformDecode(r.Body)
-		fmt.Println(informPkt, err)
+		if err != nil {
+			fmt.Println("Error decoding Inform: ", err)
+		} else {
+			s.informHandler.HandleInform(informPkt)
+		}
 	})
 }
 

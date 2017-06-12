@@ -1,14 +1,14 @@
 package packet
 
 import (
-	"bytes"
-	"compress/zlib"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
 	"errors"
 	"io"
 	"strconv"
+
+	"github.com/golang/snappy"
 )
 
 // Inform captures the information contained in an inform packet.
@@ -20,20 +20,21 @@ type Inform struct {
 	DataVersion uint32
 	DataLength  uint32
 	Data        []byte
+	RawFlags    uint16
 
-	Encrypted, Compressed bool
+	Encrypted, CompressedSnappy bool
 }
 
 // Payload decrypts and uncompresses using the given key, returning the raw payload.
 func (i *Inform) Payload(key []byte) ([]byte, error) {
-	if i.Compressed {
-		err := i.decompress()
+	if i.Encrypted {
+		err := i.decrypt(key)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if i.Encrypted {
-		err := i.decrypt(key)
+	if i.CompressedSnappy {
+		err := i.decompressSnappy()
 		if err != nil {
 			return nil, err
 		}
@@ -41,18 +42,11 @@ func (i *Inform) Payload(key []byte) ([]byte, error) {
 	return i.Data, nil
 }
 
-func (i *Inform) decompress() error {
-	b := bytes.NewReader(i.Data)
-	r, err := zlib.NewReader(b)
-	if err != nil {
-		return err
-	}
-
-	o := bytes.NewBuffer(make([]byte, i.DataLength/2))
-	io.Copy(o, r)
-	i.Compressed = false
-	i.Data = o.Bytes()
-	return nil
+func (i *Inform) decompressSnappy() error {
+	var err error
+	i.Data, err = snappy.Decode(i.Data, i.Data)
+	i.CompressedSnappy = false
+	return err
 }
 
 func (i *Inform) decrypt(key []byte) error {
@@ -63,6 +57,11 @@ func (i *Inform) decrypt(key []byte) error {
 
 	mode := cipher.NewCBCDecrypter(block, i.IV)
 	mode.CryptBlocks(i.Data, i.Data)
+	d, err := pkcs7Unpad(i.Data, aes.BlockSize)
+	if err != nil {
+		return err
+	}
+	i.Data = d
 	i.Encrypted = false
 	return nil
 }
@@ -91,14 +90,11 @@ func InformDecode(r io.Reader) (*Inform, error) {
 	}
 	copy(pkt.APMAC[:], mac)
 
-	flags := make([]byte, 2)
-	_, err = io.ReadFull(r, flags)
-	if err != nil {
-		return nil, err
+	if pktFlagsReadErr := binary.Read(r, binary.BigEndian, &pkt.RawFlags); pktFlagsReadErr != nil {
+		return nil, pktFlagsReadErr
 	}
-	//fmt.Println(flags)
-	pkt.Encrypted = (flags[1] & (1 << 0)) > 0
-	pkt.Compressed = (flags[1] & (1 << 1)) > 0
+	pkt.Encrypted = (pkt.RawFlags & 0x01) > 0
+	pkt.CompressedSnappy = (pkt.RawFlags & 0x03) > 0
 
 	pkt.IV = make([]byte, 16)
 	_, err = io.ReadFull(r, pkt.IV)

@@ -3,12 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
-	"gofi/adopt"
-	"gofi/serv"
+	"gofi/manager"
 	"log"
 	"net"
 	"os"
-	"strings"
 )
 
 func localAddr() (net.IP, error) {
@@ -55,19 +53,11 @@ func main() {
 	}
 	log.Printf("Started, controller running on %s\n", laddr)
 
-	serv, err := serv.New(":8421")
+	manager, err := manager.New(":8421", laddr.String())
 	if err != nil {
-		log.Printf("Failed to start UDP server: %s", err)
+		fmt.Println(err)
 		os.Exit(1)
 	}
-	defer serv.Close()
-
-	for {
-		discoveryPkt := <-serv.DiscoveryPackets
-		discoveryPkt.Debug()
-		adoptCfg := adopt.NewConfig(strings.Split(discoveryPkt.IPInfo.String(), ":")[0]+":22", laddr.To4().String()+":8421")
-		fmt.Println("adoption configuration:", adoptCfg)
-		adoptErr := adopt.Adopt(adoptCfg)
-		fmt.Println("adoption operation:", adoptErr)
-	}
+	defer manager.Close()
+	fmt.Println(manager.Run())
 }
