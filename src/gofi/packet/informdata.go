@@ -7,6 +7,7 @@ type InformData struct {
 	BootVersion string `json:"bootrom_version,omitempty"`
 	Fingerprint string `json:"fingerprint,omitempty"`
 	Hostname    string `json:"hostname,omitempty"`
+	State       int    `json:"state,omitempty"`
 
 	Interfaces []Interface `json:"if_table,omitempty"`
 	RadioInfo  []RadioInfo `json:"radio_table,omitempty"`
@@ -42,4 +43,16 @@ type RadioInfo struct {
 func FormatDiscoveryResponse(d []byte) (*InformData, error) {
 	var out InformData
 	return &out, json.Unmarshal(d, &out)
+}
+
+// CommandData encapsulates the data sent in an instruction to a AP.
+type CommandData struct {
+	Type string `json:"_type"`
+
+	Interval int `json:"interval,omitempty"`
+}
+
+// MakeNoop creates the payload section of a noop response.
+func MakeNoop(pollDelay int) ([]byte, error) {
+	return json.Marshal(CommandData{Type: "noop", Interval: pollDelay})
 }

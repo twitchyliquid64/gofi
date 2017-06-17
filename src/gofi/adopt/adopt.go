@@ -3,7 +3,6 @@ package adopt
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -12,6 +11,7 @@ import (
 type Config struct {
 	APAddr         string
 	ControllerAddr string
+	Pass           string
 
 	Key []byte
 }
@@ -19,7 +19,7 @@ type Config struct {
 // Adopt performs an adopt operation.
 func Adopt(cfg *Config) error {
 	c := &ssh.ClientConfig{User: "ubnt", HostKeyCallback: ssh.InsecureIgnoreHostKey()}
-	c.Auth = append(c.Auth, ssh.Password("ubnt"))
+	c.Auth = append(c.Auth, ssh.Password(cfg.Pass))
 
 	client, err := ssh.Dial("tcp", cfg.APAddr, c)
 	if err != nil {
@@ -31,17 +31,16 @@ func Adopt(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	output, err := s.CombinedOutput("/usr/bin/syswrapper.sh set-adopt http://" + cfg.ControllerAddr + "/inform " + hex.EncodeToString(cfg.Key))
+
+	_, err = s.CombinedOutput("/usr/bin/syswrapper.sh set-adopt http://" + cfg.ControllerAddr + "/inform " + hex.EncodeToString(cfg.Key))
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Output of set-adopt:", string(output))
 	return nil
 }
 
 // NewConfig creates a Config with a random encryption key.
-func NewConfig(apAddr, controllerAddr string) *Config {
+func NewConfig(apAddr, controllerAddr, pass string) *Config {
 	b, err := GenerateRandomBytes(16)
 	if err != nil {
 		panic(err)
@@ -50,6 +49,7 @@ func NewConfig(apAddr, controllerAddr string) *Config {
 		APAddr:         apAddr,
 		ControllerAddr: controllerAddr,
 		Key:            b,
+		Pass:           pass,
 	}
 }
 

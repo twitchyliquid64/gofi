@@ -10,7 +10,7 @@ import (
 )
 
 type informHandler interface {
-	HandleInform(*packet.Inform)
+	HandleInform(*packet.Inform) ([]byte, error)
 }
 
 // Serv represents a running server
@@ -64,7 +64,15 @@ func (s *Serv) makeHTTPServer(listener string) {
 		if err != nil {
 			fmt.Println("Error decoding Inform: ", err)
 		} else {
-			s.informHandler.HandleInform(informPkt)
+			data, err := s.informHandler.HandleInform(informPkt)
+			if err != nil {
+				fmt.Printf("HandleInform() err: %s\n", err)
+				return
+			}
+			w.Header().Set("Content-Type", "application/x-binary")
+			w.Header().Set("User-Agent", "Unifi Controller")
+			w.Header().Set("Connection", "close")
+			w.Write(data)
 		}
 	})
 }

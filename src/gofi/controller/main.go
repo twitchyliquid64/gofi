@@ -53,7 +53,7 @@ func main() {
 	}
 	log.Printf("Started, controller running on %s\n", laddr)
 
-	manager, err := manager.New(":8421", laddr.String())
+	manager, err := manager.New(":8421", laddr.String(), nil)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

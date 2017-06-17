@@ -66,6 +66,7 @@ func (d *Discovery) Debug() {
 	fmt.Printf("\tFirmware=%s\n", d.FirmwareVersion)
 	fmt.Printf("\tPlatform=%s\n", d.Platform)
 	fmt.Printf("\tUptime=%d\n", d.UptimeSecs)
+	fmt.Printf("\tAddr=%+v\n", d.IPInfo)
 }
 
 // DiscoveryDecode decodes a discovery packet from a ubiquiti device.

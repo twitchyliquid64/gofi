@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
@@ -22,7 +23,80 @@ type Inform struct {
 	Data        []byte
 	RawFlags    uint16
 
-	Encrypted, CompressedSnappy bool
+	Encrypted, CompressedSnappy, CompressedZib bool
+}
+
+// CloneForReply duplicates the struct into a new structure to be modified and transmitted.
+func (i *Inform) CloneForReply() *Inform {
+	r := &Inform{
+		Version:          i.Version,
+		APMAC:            i.APMAC,
+		DataVersion:      i.DataVersion,
+		DataLength:       i.DataLength,
+		Encrypted:        i.Encrypted,
+		CompressedSnappy: i.CompressedSnappy,
+		CompressedZib:    i.CompressedZib,
+		RawFlags:         i.RawFlags,
+	}
+	r.IV = make([]byte, len(i.IV))
+	copy(r.IV, i.IV)
+	r.Data = make([]byte, len(i.Data))
+	copy(r.Data, i.Data)
+	return r
+}
+
+// Marshal creates a 'on-the-wire' bitstream representing the contents of the Inform packet.
+// NOTE: All flags and DataLength is ignored.
+func (i *Inform) Marshal(key []byte) ([]byte, error) {
+	var buff bytes.Buffer
+	payload, err := encrypt(i.Data, key, i.IV)
+	if err != nil {
+		return nil, err
+	}
+
+	buff.Grow(len(payload) + 40)
+	buff.WriteString("TNBU")
+	err = binary.Write(&buff, binary.BigEndian, i.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	buff.Write(i.APMAC[:])
+
+	err = binary.Write(&buff, binary.BigEndian, uint16(1)) //encryption only
+	if err != nil {
+		return nil, err
+	}
+
+	buff.Write(i.IV[:])
+
+	err = binary.Write(&buff, binary.BigEndian, i.DataVersion)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Write(&buff, binary.BigEndian, uint32(len(payload)))
+	if err != nil {
+		return nil, err
+	}
+
+	buff.Write(payload)
+
+	return buff.Bytes(), nil
+}
+
+func encrypt(data, key, iv []byte) ([]byte, error) {
+	d, err := pkcs7Pad(data, aes.BlockSize)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(d, d)
+	return d, nil
 }
 
 // Payload decrypts and uncompresses using the given key, returning the raw payload.
@@ -94,7 +168,8 @@ func InformDecode(r io.Reader) (*Inform, error) {
 		return nil, pktFlagsReadErr
 	}
 	pkt.Encrypted = (pkt.RawFlags & 0x01) > 0
-	pkt.CompressedSnappy = (pkt.RawFlags & 0x03) > 0
+	pkt.CompressedZib = (pkt.RawFlags & 0x02) > 0
+	pkt.CompressedSnappy = (pkt.RawFlags & 0x04) > 0
 
 	pkt.IV = make([]byte, 16)
 	_, err = io.ReadFull(r, pkt.IV)
