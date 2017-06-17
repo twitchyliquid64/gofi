@@ -5,9 +5,17 @@ import (
 	"strings"
 )
 
+// States which can be passed to SetState()
+const (
+	StateUnknown int = iota
+	StateAdopted
+	StateManaged
+)
+
 // BasicClient is an in-memory representation of AP state.
 type BasicClient struct {
 	IsManagedMode bool
+	IsAdoptedMode bool
 	EncryptionKey []byte
 	MACAddr       [6]byte
 	IP            net.Addr
@@ -18,9 +26,25 @@ func (c *BasicClient) MAC() [6]byte {
 	return c.MACAddr
 }
 
-// IsManaged returns true if the AP is 'adopted'
+// SetState is called when the AP transistions to a new state.
+func (c *BasicClient) SetState(state int) {
+	switch state {
+	case StateManaged:
+		c.IsManagedMode = true
+		fallthrough
+	case StateAdopted:
+		c.IsAdoptedMode = true
+	}
+}
+
+// IsManaged returns true if the AP is 'adopted' AND configured
 func (c *BasicClient) IsManaged() bool {
 	return c.IsManagedMode
+}
+
+// IsAdopted returns true if the AP is 'adopted'
+func (c *BasicClient) IsAdopted() bool {
+	return c.IsAdoptedMode
 }
 
 // AuthKey returns the authentication key for all communications.

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"gofi/adopt"
+	"gofi/config"
 	"gofi/packet"
 	"gofi/serv"
 	"strings"
@@ -12,7 +13,9 @@ import (
 // ap represents the state of an ap.
 type ap interface {
 	MAC() [6]byte
+	IsAdopted() bool
 	IsManaged() bool
+	SetState(int)
 	AuthKey() []byte
 	SSHPw() string
 	GetIP() string
@@ -27,6 +30,7 @@ type Manager struct {
 	localAddr        string
 	httpListenerAddr string
 	serv             *serv.Serv
+	networkConfig    *config.Config
 
 	discoveryInitializer discoveryStateInitialiser
 }
@@ -49,6 +53,7 @@ func New(httpListenerAddr, localAddr string, stateInitializer discoveryStateInit
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: defaultStateInitializer,
+		networkConfig:        &config.Config{},
 	}
 	if stateInitializer != nil {
 		m.discoveryInitializer = stateInitializer
@@ -104,11 +109,21 @@ func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(d))
 	if !accessPoint.IsManaged() {
 		return m.handleDiscoveryInform(informPkt, accessPoint, d)
 	}
-	return nil, errors.New("Don't know how to handle inform for given AP state")
+	return m.handleNormalInform(informPkt, accessPoint, d)
+}
+
+func (m *Manager) handleNormalInform(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+	reply := informPkt.CloneForReply()
+	var err error
+	reply.Data, err = packet.MakeNoop(3)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("[INFORM] Handled nominal inform for %x\n", accessPoint.MAC())
+	return reply.Marshal(accessPoint.AuthKey())
 }
 
 func (m *Manager) handleDiscoveryInform(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
@@ -120,18 +135,36 @@ func (m *Manager) handleDiscoveryInform(informPkt *packet.Inform, accessPoint ap
 		return nil, errors.New("Expected discovery response")
 	}
 
-	config, err := GetConfig(accessPoint.GetIP(), accessPoint.SSHPw())
+	sysconf, mgmtconf, err := GetConfig(accessPoint.GetIP(), accessPoint.SSHPw()) //fetch config from AP
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(config))
+	newSysConf, newMgmtConf, err := m.networkConfig.Generate(sysconf, mgmtconf) //Make modifications based on desired settings
+	if err != nil {
+		return nil, err
+	}
 
-	// we reuse the existing packet structure
 	reply := informPkt.CloneForReply()
-	reply.Data, err = packet.MakeNoop(5)
+	if !accessPoint.IsAdopted() { //havent sent just the mgmt yet
+		fmt.Printf("[INFORM-PROVISION] Sending management configuration to %x\n", accessPoint.MAC())
+		reply.Data, err = packet.MakeMgmtConfigUpdate(newMgmtConf)
+		accessPoint.SetState(StateAdopted)
+	} else if !accessPoint.IsManaged() { //mgmt sent, system not yet sent
+		fmt.Printf("[INFORM-PROVISION] Sending system configuration to %x via SSH\n", accessPoint.MAC())
+		err = setSystemConfig(accessPoint.GetIP(), accessPoint.SSHPw(), newSysConf)
+		if err != nil {
+			return nil, err
+		}
+		err = applyConfig(accessPoint.GetIP(), accessPoint.SSHPw())
+		if err != nil {
+			return nil, err
+		}
+		accessPoint.SetState(StateManaged)
+		reply.Data, err = packet.MakeNoop(3)
+	}
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(reply.Data))
+	//fmt.Println(string(reply.Data))
 	return reply.Marshal(accessPoint.AuthKey())
 }

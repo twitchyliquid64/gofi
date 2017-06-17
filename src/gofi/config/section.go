@@ -23,6 +23,39 @@ func prefixJoin(prefix, sectionName string) string {
 	return prefix + "." + sectionName
 }
 
+// Get returns the specified subsection or an empty section if none exists.
+func (s *Section) Get(name string) *Section {
+	sect, ok := s.NamedSubs[name]
+	if ok {
+		return sect
+	}
+	return newSect()
+}
+
+// SetVal sets the value of the section.
+func (s *Section) SetVal(v string) {
+	s.Value = v
+	s.HasValue = true
+}
+
+// Iterate returns an array of sections which have names which are numbers.
+func (s *Section) Iterate() []*Section {
+	var out []*Section
+	for sectionName, section := range s.NamedSubs {
+		if _, err := strconv.Atoi(sectionName); err == nil {
+			out = append(out, section)
+		}
+	}
+	return out
+}
+
+// Serialize returns the encoded form of the configuration section and its children.
+func (s *Section) Serialize() (string, error) {
+	var out []string
+	s.generate("", &out)
+	return strings.Join(out, "\n"), nil
+}
+
 func (s *Section) generate(prefix string, out *[]string) error {
 	if len(s.NamedSubs) > 0 {
 		//Do numbers if you can
