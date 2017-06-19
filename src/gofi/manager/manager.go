@@ -1,6 +1,8 @@
 package manager
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"gofi/adopt"
@@ -19,6 +21,8 @@ type ap interface {
 	AuthKey() []byte
 	SSHPw() string
 	GetIP() string
+	GetConfigVersion() string
+	SetConfigVersion(string)
 }
 
 type discoveryStateInitialiser func(string, string, *packet.Discovery) (ap, *adopt.Config, error)
@@ -86,19 +90,19 @@ func (m *Manager) Run() error {
 					fmt.Printf("[DISCOVERY] Aborting processing of discovery from %s\n", discoveryPkt.IPInfo)
 					continue
 				}
+				m.MacAddrToKey[accessPoint.MAC()] = accessPoint
 				adoptErr := adopt.Adopt(adoptCfg)
 				if adoptErr != nil {
 					fmt.Printf("[ADOPT] Adopt failed: %s\n", adoptErr)
 					continue
 				}
 				fmt.Printf("[DISCOVERY] Adoption for %s successful.\n", discoveryPkt.IPInfo)
-				m.MacAddrToKey[accessPoint.MAC()] = accessPoint
 			}
 		}
 	}
 }
 
-// HandleInform is called by the server when an inform packet is recieved.
+// HandleInform is called by the server when an inform packet is recieved.GenerateMgmtConf
 func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 	accessPoint, apKnown := m.MacAddrToKey[informPkt.APMAC]
 	if !apKnown {
@@ -135,36 +139,64 @@ func (m *Manager) handleDiscoveryInform(informPkt *packet.Inform, accessPoint ap
 		return nil, errors.New("Expected discovery response")
 	}
 
-	sysconf, mgmtconf, err := GetConfig(accessPoint.GetIP(), accessPoint.SSHPw()) //fetch config from AP
-	if err != nil {
-		return nil, err
-	}
-	newSysConf, newMgmtConf, err := m.networkConfig.Generate(sysconf, mgmtconf) //Make modifications based on desired settings
-	if err != nil {
-		return nil, err
-	}
-
 	reply := informPkt.CloneForReply()
 	if !accessPoint.IsAdopted() { //havent sent just the mgmt yet
-		fmt.Printf("[INFORM-PROVISION] Sending management configuration to %x\n", accessPoint.MAC())
-		reply.Data, err = packet.MakeMgmtConfigUpdate(newMgmtConf)
-		accessPoint.SetState(StateAdopted)
-	} else if !accessPoint.IsManaged() { //mgmt sent, system not yet sent
-		fmt.Printf("[INFORM-PROVISION] Sending system configuration to %x via SSH\n", accessPoint.MAC())
-		err = setSystemConfig(accessPoint.GetIP(), accessPoint.SSHPw(), newSysConf)
+		var r []byte
+		r, err = GenerateRandomBytes(8)
 		if err != nil {
 			return nil, err
 		}
-		err = applyConfig(accessPoint.GetIP(), accessPoint.SSHPw())
+		accessPoint.SetConfigVersion(hex.EncodeToString(r))
+		fmt.Printf("[INFORM-PROVISION] New configuration version %q for %x\n", hex.EncodeToString(r), accessPoint.MAC())
+
+		fmt.Printf("[INFORM-PROVISION] Sending management configuration to %x\n", accessPoint.MAC())
+		var mgmtConf string
+		mgmtConf, err = m.networkConfig.GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(mgmtConf)
+		reply.Data, err = packet.MakeMgmtConfigUpdate(mgmtConf, accessPoint.GetConfigVersion())
+		accessPoint.SetState(StateAdopted)
+	} else if !accessPoint.IsManaged() { //mgmt sent, system not yet sent
+		fmt.Printf("[INFORM-PROVISION] Sending system configuration to %x via HTTP response\n", accessPoint.MAC())
+		sysconf, err := GetSysConfig(accessPoint.GetIP(), accessPoint.SSHPw()) //fetch config from AP
+		if err != nil {
+			return nil, err
+		}
+		newSysConf, err := m.networkConfig.GenerateSysConf(sysconf, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
+		if err != nil {
+			return nil, err
+		}
+
+		var mgmtConf string
+		mgmtConf, err = m.networkConfig.GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
 		if err != nil {
 			return nil, err
 		}
 		accessPoint.SetState(StateManaged)
-		reply.Data, err = packet.MakeNoop(3)
+		reply.Data, err = packet.MakeConfigUpdate(newSysConf, mgmtConf, accessPoint.GetConfigVersion())
+		fmt.Println(string(reply.Data))
 	}
 	if err != nil {
 		return nil, err
 	}
 	//fmt.Println(string(reply.Data))
 	return reply.Marshal(accessPoint.AuthKey())
+}
+
+// GenerateRandomBytes returns securely generated random bytes.
+// It will return an error if the system's secure random
+// number generator fails to function correctly, in which
+// case the caller should not continue.
+// Sauce: https://elithrar.github.io/article/generating-secure-random-numbers-crypto-rand/
+func GenerateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	// Note that err == nil only if we read len(b) bytes.
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }

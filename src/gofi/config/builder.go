@@ -7,21 +7,45 @@ type Config struct {
 	Beacon bool
 }
 
-// Generate ingests the devices current config and modifies it based on the fields in Config.
-func (b *Config) Generate(sysconf, mgmtconf []byte) (string, string, error) {
-	config, err := Parse(sysconf)
+// GenerateSysConf ingests the devices current config and modifies it based on the fields in Config.
+func (b *Config) GenerateSysConf(sysconf []byte, configVersion string) (string, error) {
+	configSys, err := Parse(sysconf)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	if err = b.apply(config); err != nil {
-		return "", "", err
+	if err = b.applySysConf(configSys, configVersion); err != nil {
+		return "", err
 	}
 	var newSysConf string
-	newSysConf, err = config.Serialize()
-	return newSysConf, string(mgmtconf), err
+	newSysConf, err = configSys.Serialize()
+	if err != nil {
+		return "", err
+	}
+
+	return newSysConf, err
 }
 
-func (b *Config) apply(config *Section) error {
+func (b *Config) GenerateMgmtConf(auth, configVersion, localAddr, listenerAddr string) (string, error) {
+	configMgmt, err := Parse([]byte(`
+		mgmt.is_default=false
+		mgmt.authkey=41d6529fd555fbb1bdeeafeb995510fa
+		mgmt.cfgversion=f1bb359840b519a4
+		mgmt.servers.1.url=http://172.16.0.38:6080/inform
+		mgmt.selfrun_guest=pass
+		selfrun_guest=pass
+		cfgversion=f1bb359840b519a4
+		`))
+	if err != nil {
+		return "", err
+	}
+	configMgmt.Get("mgmt").Get("servers").Get("1").Get("url").SetVal("http://" + localAddr + listenerAddr + "/inform")
+	configMgmt.Get("mgmt").Get("authkey").SetVal(auth)
+	configMgmt.Get("mgmt").Get("cfgversion").SetVal(configVersion)
+	configMgmt.Get("cfgversion").SetVal(configVersion)
+	return configMgmt.Serialize()
+}
+
+func (b *Config) applySysConf(config *Section, configVersion string) error {
 	for _, section := range config.Get("wireless").Iterate() {
 		section.Get("hide_ssid").SetVal("false")
 	}

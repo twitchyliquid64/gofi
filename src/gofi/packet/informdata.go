@@ -1,10 +1,9 @@
 package packet
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -61,7 +60,7 @@ type CommandData struct {
 	ConfigVersion    string `json:"cfgversion,omitempty"`
 	ManagementConfig string `json:"mgmt_cfg,omitempty"`
 	SystemConfig     string `json:"system_cfg,omitempty"`
-	BlockedStations  string `json:"blocked_sta,omitempty"`
+	BlockedStations  string `json:"blocked_sta"`
 }
 
 // MakeNoop creates the payload section of a noop response.
@@ -70,57 +69,32 @@ func MakeNoop(pollDelay int) ([]byte, error) {
 }
 
 // MakeMgmtConfigUpdate creates the payload section of a response which sets all configuration.
-func MakeMgmtConfigUpdate(mgmtCfg string) ([]byte, error) {
-	rb, err := GenerateRandomBytes(8)
-	if err != nil {
-		return nil, err
-	}
+func MakeMgmtConfigUpdate(mgmtCfg, configVersion string) ([]byte, error) {
 	return json.Marshal(CommandData{
 		Type:             "setparam",
 		ServerTimestamp:  unixMicroPSTString(),
-		ManagementConfig: mgmtCfg,
-		ConfigVersion:    hex.EncodeToString(rb),
+		ManagementConfig: strings.Replace(mgmtCfg, "\n", "\\n", -1),
+		ConfigVersion:    configVersion,
 	})
 }
 
 // MakeConfigUpdate creates the payload section of a response which sets all configuration.
-func MakeConfigUpdate(sysCfg, mgmtCfg string) ([]byte, error) {
-	rb, err := GenerateRandomBytes(8)
-	if err != nil {
-		return nil, err
-	}
+func MakeConfigUpdate(sysCfg, mgmtCfg, configVersion string) ([]byte, error) {
 	return json.Marshal(CommandData{
 		Type:             "setparam",
 		SystemConfig:     sysCfg,
 		ServerTimestamp:  unixMicroPSTString(),
 		ManagementConfig: mgmtCfg,
-		ConfigVersion:    hex.EncodeToString(rb),
+		ConfigVersion:    configVersion,
 	})
 }
 
 //Credit: mcrute - https://github.com/mcrute/go-inform/blob/master/inform/tx_messages.go
 func unixMicroPST() int64 {
-	l, _ := time.LoadLocation("America/Los_Angeles")
-	tnano := time.Now().In(l).UnixNano()
+	tnano := time.Now().UnixNano()
 	return tnano / int64(time.Millisecond)
 }
 
 func unixMicroPSTString() string {
 	return strconv.FormatInt(unixMicroPST(), 10)
-}
-
-// GenerateRandomBytes returns securely generated random bytes.
-// It will return an error if the system's secure random
-// number generator fails to function correctly, in which
-// case the caller should not continue.
-// Sauce: https://elithrar.github.io/article/generating-secure-random-numbers-crypto-rand/
-func GenerateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	// Note that err == nil only if we read len(b) bytes.
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }

@@ -19,6 +19,7 @@ type BasicClient struct {
 	EncryptionKey []byte
 	MACAddr       [6]byte
 	IP            net.Addr
+	CfgVersion    string
 }
 
 // MAC returns the MAC address of the AP.
@@ -35,6 +36,16 @@ func (c *BasicClient) SetState(state int) {
 	case StateAdopted:
 		c.IsAdoptedMode = true
 	}
+}
+
+// GetConfigVersion fetches the config version.
+func (c *BasicClient) GetConfigVersion() string {
+	return c.CfgVersion
+}
+
+// SetConfigVersion stores the config version.
+func (c *BasicClient) SetConfigVersion(cfgv string) {
+	c.CfgVersion = cfgv
 }
 
 // IsManaged returns true if the AP is 'adopted' AND configured

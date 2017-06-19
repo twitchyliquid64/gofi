@@ -2,11 +2,13 @@ package packet
 
 import (
 	"bytes"
+	"compress/zlib"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
 	"errors"
 	"io"
+	"io/ioutil"
 	"strconv"
 
 	"github.com/golang/snappy"
@@ -113,7 +115,29 @@ func (i *Inform) Payload(key []byte) ([]byte, error) {
 			return nil, err
 		}
 	}
+	if i.CompressedZib {
+		err := i.decompressZlib()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return i.Data, nil
+}
+
+func (i *Inform) decompressZlib() error {
+	b := bytes.NewReader(i.Data)
+
+	r, err := zlib.NewReader(b)
+	if err != nil {
+		return err
+	}
+
+	i.Data, err = ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	i.CompressedZib = false
+	return nil
 }
 
 func (i *Inform) decompressSnappy() error {
