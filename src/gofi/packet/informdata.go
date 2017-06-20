@@ -2,20 +2,31 @@ package packet
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
-	"strings"
 	"time"
 )
 
 // InformData captures the unpacked representation of an inform packet from the device.
 type InformData struct {
-	BootVersion string `json:"bootrom_version,omitempty"`
-	Fingerprint string `json:"fingerprint,omitempty"`
-	Hostname    string `json:"hostname,omitempty"`
-	State       int    `json:"state,omitempty"`
+	ConfigVersion   string `json:"cfgversion,omitempty"`
+	BootVersion     string `json:"bootrom_version,omitempty"`
+	Fingerprint     string `json:"fingerprint,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ModelName       string `json:"model_display,omitempty"`
+	InformURL       string `json:"inform_url,omitempty"`
+	IsDefaultConfig bool   `json:"default,omitempty"`
+	State           int    `json:"state,omitempty"`
 
-	Interfaces []Interface `json:"if_table,omitempty"`
-	RadioInfo  []RadioInfo `json:"radio_table,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
+	IP       string `json:"ip,omitempty"`
+	Mac      string `json:"mac,omitempty"`
+	Netmask  string `json:"netmask,omitempty"`
+
+	CountryCode int         `json:"country_code,omitempty"`
+	Interfaces  []Interface `json:"if_table,omitempty"`
+	RadioInfo   []RadioInfo `json:"radio_table,omitempty"`
+	Nets        []Net       `json:"vap_table"`
 
 	IsDiscovery bool `json:"discovery_response,omitempty"`
 }
@@ -33,19 +44,83 @@ type Interface struct {
 	Speed      int    `json:"speed"`
 	Up         bool   `json:"up"`
 	Uptime     int    `json:"uptime"`
+
+	RxBytes     int `json:"rx_bytes"`
+	RxDropped   int `json:"rx_dropped"`
+	RxErrors    int `json:"rx_errors"`
+	RxMulticast int `json:"rx_multicast"`
+	RxPackets   int `json:"rx_packets"`
+
+	TxBytes     int `json:"tx_bytes"`
+	TxDropped   int `json:"tx_dropped"`
+	TxErrors    int `json:"tx_errors"`
+	TxMulticast int `json:"tx_multicast"`
+	TxPackets   int `json:"tx_packets"`
 }
 
 // RadioInfo describes a wireless interface on the device.
 type RadioInfo struct {
-	BuiltinAntennaGain int    `json:"builtin_ant_gain"`
-	HasInternalAntenna bool   `json:"builtin_antenna"`
-	MaxTx              int    `json:"max_txpower"`
-	Name               string `json:"name"`
-	Radio              string `json:"radio"`
+	BuiltinAntennaGain int             `json:"builtin_ant_gain"`
+	HasInternalAntenna bool            `json:"builtin_antenna"`
+	MaxTx              int             `json:"max_txpower"`
+	Name               string          `json:"name"`
+	Radio              string          `json:"radio"`
+	DetectedNets       []NearbyNetwork `json:"scan_table"`
 }
 
-// FormatDiscoveryResponse decodes a JSON inform payload representing a discoveryResponse packet
-func FormatDiscoveryResponse(d []byte) (*InformData, error) {
+// NearbyNetwork describes a network detected by the AP.
+type NearbyNetwork struct {
+	Age      int    `json:"age"`
+	BSSID    string `json:"bssid"`
+	SSID     string `json:"essid"`
+	Security string `json:"security"`
+
+	Channel int  `json:"channel"`
+	Freq    int  `json:"freq"`
+	IsAdhoc bool `json:"is_adhoc"`
+	RSSI    int  `json:"rssi"`
+}
+
+// Net represents information about a network being run from the AP.
+type Net struct {
+	BSSID   string `json:"bssid"`
+	SSID    string `json:"essid"`
+	CCQ     int    `json:"ccq"`
+	Channel int    `json:"channel"`
+	Name    string `json:"name"`
+	Radio   string `json:"radio"`
+
+	RxBytes   int `json:"rx_bytes"`
+	TxBytes   int `json:"tx_bytes"`
+	RxErrors  int `json:"rx_errors"`
+	TxErrors  int `json:"tx_errors"`
+	RxPackets int `json:"rx_packets"`
+	TxPackets int `json:"tx_packets"`
+
+	Stations []Station `json:"sta_table"`
+}
+
+// Station represents information about a station associated with the AP.
+type Station struct {
+	AuthTime   int    `json:"auth_time"`
+	Authorised bool   `json:"authorized"`
+	Hostname   string `json:"hostname"`
+	IP         string `json:"ip"`
+	MAC        string `json:"mac"`
+	State      int    `json:"state"`
+	Uptime     int    `json:"uptime"`
+
+	Idletime    int  `json:"idletime"`
+	Is11N       bool `json:"is_11n"`
+	CCQ         int  `json:"ccq"`
+	Noise       int  `json:"noise"`
+	RSSI        int  `json:"rssi"`
+	Signal      int  `json:"signal"`
+	PowerSaving bool `json:"state_pwrmgt"`
+}
+
+// UnpackInform decodes a JSON inform payload representing a discoveryResponse packet
+func UnpackInform(d []byte) (*InformData, error) {
 	var out InformData
 	return &out, json.Unmarshal(d, &out)
 }
@@ -68,16 +143,6 @@ func MakeNoop(pollDelay int) ([]byte, error) {
 	return json.Marshal(CommandData{Type: "noop", Interval: pollDelay})
 }
 
-// MakeMgmtConfigUpdate creates the payload section of a response which sets all configuration.
-func MakeMgmtConfigUpdate(mgmtCfg, configVersion string) ([]byte, error) {
-	return json.Marshal(CommandData{
-		Type:             "setparam",
-		ServerTimestamp:  unixMicroPSTString(),
-		ManagementConfig: strings.Replace(mgmtCfg, "\n", "\\n", -1),
-		ConfigVersion:    configVersion,
-	})
-}
-
 // MakeConfigUpdate creates the payload section of a response which sets all configuration.
 func MakeConfigUpdate(sysCfg, mgmtCfg, configVersion string) ([]byte, error) {
 	return json.Marshal(CommandData{
@@ -87,6 +152,19 @@ func MakeConfigUpdate(sysCfg, mgmtCfg, configVersion string) ([]byte, error) {
 		ManagementConfig: mgmtCfg,
 		ConfigVersion:    configVersion,
 	})
+}
+
+// InformCfgVersion minimally parses the Inform payload, returning the current config version.
+func InformCfgVersion(d []byte) string {
+	var u struct {
+		V string `json:"cfgversion"`
+	}
+	err := json.Unmarshal(d, &u)
+	if err != nil {
+		fmt.Println("InformCfgVersion() err:", err)
+		return "?ERR?"
+	}
+	return u.V
 }
 
 //Credit: mcrute - https://github.com/mcrute/go-inform/blob/master/inform/tx_messages.go

@@ -2,9 +2,8 @@ package config
 
 // Config stores logical configuration of the network.
 type Config struct {
-	SSID   string
-	Pass   string
-	Beacon bool
+	SSID string
+	Pass string
 }
 
 // GenerateSysConf ingests the devices current config and modifies it based on the fields in Config.
@@ -49,6 +48,10 @@ func (b *Config) GenerateMgmtConf(auth, configVersion, localAddr, listenerAddr s
 }
 
 func (b *Config) applySysConf(config *Section, configVersion string) error {
+	config.Get("aaa").Get("1").Get("ssid").SetVal(b.SSID)
+	config.Get("wireless").Get("1").Get("ssid").SetVal(b.SSID)
+	config.Get("aaa").Get("1").Get("wpa").Get("psk").SetVal(b.Pass)
+
 	for _, section := range config.Get("wireless").Iterate() {
 		section.Get("hide_ssid").SetVal("false")
 	}

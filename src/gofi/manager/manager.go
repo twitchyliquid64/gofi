@@ -10,13 +10,23 @@ import (
 	"gofi/packet"
 	"gofi/serv"
 	"strings"
+
+	"github.com/kylelemons/godebug/pretty"
+)
+
+// States which can be passed to SetState()
+const (
+	StateUnknown int = iota
+	StateAdopting
+	StateAdopted
+	StateProvisioning
+	StateManaged
 )
 
 // ap represents the state of an ap.
 type ap interface {
 	MAC() [6]byte
-	IsAdopted() bool
-	IsManaged() bool
+	GetState() int
 	SetState(int)
 	AuthKey() []byte
 	SSHPw() string
@@ -57,7 +67,10 @@ func New(httpListenerAddr, localAddr string, stateInitializer discoveryStateInit
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: defaultStateInitializer,
-		networkConfig:        &config.Config{},
+		networkConfig: &config.Config{
+			SSID: "kek",
+			Pass: "the_shrekkening",
+		},
 	}
 	if stateInitializer != nil {
 		m.discoveryInitializer = stateInitializer
@@ -90,19 +103,22 @@ func (m *Manager) Run() error {
 					fmt.Printf("[DISCOVERY] Aborting processing of discovery from %s\n", discoveryPkt.IPInfo)
 					continue
 				}
+				setAPConfigDirty(accessPoint)
+				accessPoint.SetState(StateAdopting)
 				m.MacAddrToKey[accessPoint.MAC()] = accessPoint
 				adoptErr := adopt.Adopt(adoptCfg)
 				if adoptErr != nil {
-					fmt.Printf("[ADOPT] Adopt failed: %s\n", adoptErr)
+					fmt.Printf("[ADOPT] [%x] Adopt failed: %s\n", discoveryPkt.MAC, adoptErr)
 					continue
 				}
-				fmt.Printf("[DISCOVERY] Adoption for %s successful.\n", discoveryPkt.IPInfo)
+				accessPoint.SetState(StateAdopted)
+				fmt.Printf("[DISCOVERY] [%x] Adoption for %s successful.\n", discoveryPkt.MAC, discoveryPkt.IPInfo)
 			}
 		}
 	}
 }
 
-// HandleInform is called by the server when an inform packet is recieved.GenerateMgmtConf
+// HandleInform is called by the server when an inform packet is recieved.
 func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 	accessPoint, apKnown := m.MacAddrToKey[informPkt.APMAC]
 	if !apKnown {
@@ -113,70 +129,59 @@ func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !accessPoint.IsManaged() {
-		return m.handleDiscoveryInform(informPkt, accessPoint, d)
+	remoteVers := packet.InformCfgVersion(d)
+	if remoteVers != accessPoint.GetConfigVersion() {
+		if accessPoint.GetState() == StateAdopted {
+			accessPoint.SetState(StateProvisioning)
+		}
+		fmt.Printf("[INFORM] [%x] AP config version is %q, but we are at %q\n", accessPoint.MAC(), remoteVers, accessPoint.GetConfigVersion())
+		return m.handleInformSendConfig(informPkt, accessPoint, d)
+	}
+
+	if accessPoint.GetState() == StateProvisioning {
+		accessPoint.SetState(StateManaged)
 	}
 	return m.handleNormalInform(informPkt, accessPoint, d)
 }
 
+// handles an inform packet with a noop when no action needs to be taken.
 func (m *Manager) handleNormalInform(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+	informPayload, err := packet.UnpackInform(d)
+	if err != nil {
+		return nil, err
+	}
+	pretty.Print(informPayload)
+
 	reply := informPkt.CloneForReply()
-	var err error
 	reply.Data, err = packet.MakeNoop(3)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("[INFORM] Handled nominal inform for %x\n", accessPoint.MAC())
+	fmt.Printf("[INFORM] [%x] Handled nominal inform\n", accessPoint.MAC())
 	return reply.Marshal(accessPoint.AuthKey())
 }
 
-func (m *Manager) handleDiscoveryInform(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
-	discoveryResponse, err := packet.FormatDiscoveryResponse(d)
+// handles an inform by generating a response to set the configuration.
+func (m *Manager) handleInformSendConfig(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+	reply := informPkt.CloneForReply()
+	fmt.Printf("[INFORM] [%x] Sending system configuration\n", accessPoint.MAC())
+	sysconf, err := GetSysConfig(accessPoint.GetIP(), accessPoint.SSHPw()) //fetch config from AP
 	if err != nil {
 		return nil, err
 	}
-	if !discoveryResponse.IsDiscovery {
-		return nil, errors.New("Expected discovery response")
+	newSysConf, err := m.networkConfig.GenerateSysConf(sysconf, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
+	if err != nil {
+		return nil, err
 	}
 
-	reply := informPkt.CloneForReply()
-	if !accessPoint.IsAdopted() { //havent sent just the mgmt yet
-		var r []byte
-		r, err = GenerateRandomBytes(8)
-		if err != nil {
-			return nil, err
-		}
-		accessPoint.SetConfigVersion(hex.EncodeToString(r))
-		fmt.Printf("[INFORM-PROVISION] New configuration version %q for %x\n", hex.EncodeToString(r), accessPoint.MAC())
-
-		fmt.Printf("[INFORM-PROVISION] Sending management configuration to %x\n", accessPoint.MAC())
-		var mgmtConf string
-		mgmtConf, err = m.networkConfig.GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
-		if err != nil {
-			return nil, err
-		}
-		reply.Data, err = packet.MakeMgmtConfigUpdate(mgmtConf, accessPoint.GetConfigVersion())
-		accessPoint.SetState(StateAdopted)
-	} else if !accessPoint.IsManaged() { //mgmt sent, system not yet sent
-		fmt.Printf("[INFORM-PROVISION] Sending system configuration to %x via HTTP response\n", accessPoint.MAC())
-		sysconf, err := GetSysConfig(accessPoint.GetIP(), accessPoint.SSHPw()) //fetch config from AP
-		if err != nil {
-			return nil, err
-		}
-		newSysConf, err := m.networkConfig.GenerateSysConf(sysconf, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
-		if err != nil {
-			return nil, err
-		}
-
-		var mgmtConf string
-		mgmtConf, err = m.networkConfig.GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
-		if err != nil {
-			return nil, err
-		}
-		accessPoint.SetState(StateManaged)
-		reply.Data, err = packet.MakeConfigUpdate(newSysConf, mgmtConf, accessPoint.GetConfigVersion())
-		fmt.Println(string(reply.Data))
+	var mgmtConf string
+	mgmtConf, err = m.networkConfig.GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
+	if err != nil {
+		return nil, err
 	}
+	accessPoint.SetState(StateManaged)
+	fmt.Println(newSysConf)
+	reply.Data, err = packet.MakeConfigUpdate(newSysConf, mgmtConf, accessPoint.GetConfigVersion())
 	if err != nil {
 		return nil, err
 	}
@@ -198,4 +203,14 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+func setAPConfigDirty(accessPoint ap) error {
+	r, err := GenerateRandomBytes(8)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[MANAGER] [%x] New configuration version %q\n", accessPoint.MAC(), hex.EncodeToString(r))
+	accessPoint.SetConfigVersion(hex.EncodeToString(r))
+	return nil
 }
