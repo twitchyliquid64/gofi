@@ -30,7 +30,9 @@ func (s *Section) Get(name string) *Section {
 	if ok {
 		return sect
 	}
-	return newSect()
+	n := newSect()
+	s.NamedSubs[name] = n
+	return n
 }
 
 // SetVal sets the value of the section.

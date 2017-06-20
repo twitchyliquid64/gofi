@@ -155,7 +155,6 @@ func (m *Manager) handleDiscoveryInform(informPkt *packet.Inform, accessPoint ap
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(mgmtConf)
 		reply.Data, err = packet.MakeMgmtConfigUpdate(mgmtConf, accessPoint.GetConfigVersion())
 		accessPoint.SetState(StateAdopted)
 	} else if !accessPoint.IsManaged() { //mgmt sent, system not yet sent

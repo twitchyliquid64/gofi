@@ -73,6 +73,7 @@ func (s *Serv) makeHTTPServer(listener string) {
 			w.Header().Set("User-Agent", "Unifi Controller")
 			w.Header().Set("Connection", "close")
 			w.Write(data)
+			fmt.Println(len(data), "Is Good: ", w.Header())
 		}
 	})
 }

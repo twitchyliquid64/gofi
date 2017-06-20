@@ -33,13 +33,16 @@ func (b *Config) GenerateMgmtConf(auth, configVersion, localAddr, listenerAddr s
 		mgmt.servers.1.url=http://172.16.0.38:6080/inform
 		mgmt.selfrun_guest=pass
 		selfrun_guest=pass
+		led_enabled=true
 		cfgversion=f1bb359840b519a4
+		authkey=41d6529fd555fbb1bdeeafeb995510fa
 		`))
 	if err != nil {
 		return "", err
 	}
 	configMgmt.Get("mgmt").Get("servers").Get("1").Get("url").SetVal("http://" + localAddr + listenerAddr + "/inform")
 	configMgmt.Get("mgmt").Get("authkey").SetVal(auth)
+	configMgmt.Get("authkey").SetVal(auth)
 	configMgmt.Get("mgmt").Get("cfgversion").SetVal(configVersion)
 	configMgmt.Get("cfgversion").SetVal(configVersion)
 	return configMgmt.Serialize()
