@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -52,25 +53,18 @@ func (s *Section) Iterate() []*Section {
 // Serialize returns the encoded form of the configuration section and its children.
 func (s *Section) Serialize() (string, error) {
 	var out []string
-	s.generate("", &out)
+	err := s.generate("", &out)
+	if err != nil {
+		return "", err
+	}
+	sort.Strings(out)
 	return strings.Join(out, "\n"), nil
 }
 
 func (s *Section) generate(prefix string, out *[]string) error {
 	if len(s.NamedSubs) > 0 {
-		//Do numbers if you can
-		notNumKeys := map[string]bool{}
 		for sectionName, section := range s.NamedSubs {
-			_, numErr := strconv.Atoi(sectionName)
-			if numErr == nil {
-				section.generate(prefixJoin(prefix, sectionName), out)
-			} else {
-				notNumKeys[sectionName] = true
-			}
-		}
-		//Do non-number ones last
-		for sectionName := range notNumKeys {
-			s.NamedSubs[sectionName].generate(prefixJoin(prefix, sectionName), out)
+			section.generate(prefixJoin(prefix, sectionName), out)
 		}
 	}
 	if s.HasValue {

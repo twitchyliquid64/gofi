@@ -32,6 +32,33 @@ aaa.2.status=disabled
    aaa.status=enabled
 `
 
+func TestGenerateSort(t *testing.T) {
+	comparisons := [][2]string{
+		[2]string{"aaa.1.br.devname", "aaa.2.br.devname"},
+		[2]string{"aaa.1.devname", "aaa.1.driver"},
+		[2]string{"aaa.1.verbose", "aaa.1.wpa.1.pairwise"},
+		[2]string{"aaa.1.br.devname", "aaa.2.br.devname"},
+		[2]string{"aaa.2.status", "aaa.status"},
+	}
+
+	obj, err := Parse([]byte(basicInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := obj.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(out)
+
+	for _, testCase := range comparisons {
+		if strings.Index(out, testCase[0]) >= strings.Index(out, testCase[1]) {
+			t.Error("Expected", testCase[0], "before", testCase[1], "in output")
+		}
+	}
+}
+
 func TestGenerate(t *testing.T) {
 	obj, err := Parse([]byte(basicInput))
 	if err != nil {
