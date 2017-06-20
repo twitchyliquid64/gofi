@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 )
 
 type informHandler interface {
@@ -70,10 +71,10 @@ func (s *Serv) makeHTTPServer(listener string) {
 				return
 			}
 			w.Header().Set("Content-Type", "application/x-binary")
+			w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 			w.Header().Set("User-Agent", "Unifi Controller")
 			w.Header().Set("Connection", "close")
 			w.Write(data)
-			fmt.Println(len(data), "Is Good: ", w.Header())
 		}
 	})
 }
