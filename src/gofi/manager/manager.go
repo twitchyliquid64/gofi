@@ -61,29 +61,13 @@ func defaultStateInitializer(localAddr, listenerAddr string, discoveryPkt *packe
 }
 
 // New creates a new AP manager (controller state).
-func New(httpListenerAddr, localAddr string, stateInitializer discoveryStateInitialiser) (*Manager, error) {
+func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser) (*Manager, error) {
 	m := &Manager{
 		MacAddrToKey:         map[[6]byte]ap{},
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: defaultStateInitializer,
-		networkConfig: &config.Config{
-			Networks: []config.Network{
-				config.Network{
-					SSID: "kek",
-					Pass: "the_shrekkening",
-				},
-				config.Network{
-					SSID:   "kek",
-					Pass:   "the_shrekkening",
-					Is5Ghz: true,
-				},
-			},
-			Bandsteer: config.SteerSettings{
-				Enabled: true,
-				Mode:    config.SteerPrefer5G,
-			},
-		},
+		networkConfig:        conf,
 	}
 	if stateInitializer != nil {
 		m.discoveryInitializer = stateInitializer
