@@ -52,6 +52,16 @@ func (s *Section) Iterate() []*Section {
 	return out
 }
 
+// Consume adds the keys/values in root to itself.
+func (s *Section) Consume(root *Section) {
+	for name, node := range root.NamedSubs {
+		s.Get(name).Consume(node)
+	}
+	if root.HasValue {
+		s.SetVal(root.Value)
+	}
+}
+
 // Serialize returns the encoded form of the configuration section and its children.
 func (s *Section) Serialize() (string, error) {
 	var out []string
@@ -87,9 +97,10 @@ func Parse(in []byte) (*Section, error) {
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" {
+		if line == "" || strings.HasPrefix(line, "#") /* comment */ {
 			continue
 		}
+
 		if !strings.Contains(line, "=") {
 			return nil, ErrInvalid
 		}

@@ -68,8 +68,21 @@ func New(httpListenerAddr, localAddr string, stateInitializer discoveryStateInit
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: defaultStateInitializer,
 		networkConfig: &config.Config{
-			SSID: "kek",
-			Pass: "the_shrekkening",
+			Networks: []config.Network{
+				config.Network{
+					SSID: "kek",
+					Pass: "the_shrekkening",
+				},
+				config.Network{
+					SSID:   "kek",
+					Pass:   "the_shrekkening",
+					Is5Ghz: true,
+				},
+			},
+			Bandsteer: config.SteerSettings{
+				Enabled: true,
+				Mode:    config.SteerPrefer5G,
+			},
 		},
 	}
 	if stateInitializer != nil {
@@ -129,28 +142,30 @@ func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	remoteVers := packet.InformCfgVersion(d)
-	if remoteVers != accessPoint.GetConfigVersion() {
-		if accessPoint.GetState() == StateAdopted {
-			accessPoint.SetState(StateProvisioning)
-		}
-		fmt.Printf("[INFORM] [%x] AP config version is %q, but we are at %q\n", accessPoint.MAC(), remoteVers, accessPoint.GetConfigVersion())
-		return m.handleInformSendConfig(informPkt, accessPoint, d)
-	}
 
-	if accessPoint.GetState() == StateProvisioning {
-		accessPoint.SetState(StateManaged)
-	}
-	return m.handleNormalInform(informPkt, accessPoint, d)
-}
-
-// handles an inform packet with a noop when no action needs to be taken.
-func (m *Manager) handleNormalInform(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
 	informPayload, err := packet.UnpackInform(d)
 	if err != nil {
 		return nil, err
 	}
 	pretty.Print(informPayload)
+
+	if informPayload.ConfigVersion != accessPoint.GetConfigVersion() {
+		if accessPoint.GetState() == StateAdopted {
+			accessPoint.SetState(StateProvisioning)
+		}
+		fmt.Printf("[INFORM] [%x] AP config version is %q, but we are at %q\n", accessPoint.MAC(), informPayload.ConfigVersion, accessPoint.GetConfigVersion())
+		return m.handleInformSendConfig(informPayload, informPkt, accessPoint, d)
+	}
+
+	if accessPoint.GetState() == StateProvisioning {
+		accessPoint.SetState(StateManaged)
+	}
+	return m.handleNormalInform(informPayload, informPkt, accessPoint, d)
+}
+
+// handles an inform packet with a noop when no action needs to be taken.
+func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+	var err error
 
 	reply := informPkt.CloneForReply()
 	reply.Data, err = packet.MakeNoop(3)
@@ -162,14 +177,10 @@ func (m *Manager) handleNormalInform(informPkt *packet.Inform, accessPoint ap, d
 }
 
 // handles an inform by generating a response to set the configuration.
-func (m *Manager) handleInformSendConfig(informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+func (m *Manager) handleInformSendConfig(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
 	reply := informPkt.CloneForReply()
 	fmt.Printf("[INFORM] [%x] Sending system configuration\n", accessPoint.MAC())
-	sysconf, err := GetSysConfig(accessPoint.GetIP(), accessPoint.SSHPw()) //fetch config from AP
-	if err != nil {
-		return nil, err
-	}
-	newSysConf, err := m.networkConfig.GenerateSysConf(sysconf, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
+	newSysConf, err := m.networkConfig.GenerateSysConf(informPayload.ModelName, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
 	if err != nil {
 		return nil, err
 	}

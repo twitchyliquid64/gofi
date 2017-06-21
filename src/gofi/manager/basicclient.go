@@ -34,7 +34,7 @@ func (c *BasicClient) SetConfigVersion(cfgv string) {
 	c.CfgVersion = cfgv
 }
 
-// IsManaged returns true if the AP is 'adopted' AND configured
+// GetState returns the state of the device.
 func (c *BasicClient) GetState() int {
 	return c.state
 }

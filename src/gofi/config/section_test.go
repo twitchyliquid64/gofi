@@ -26,6 +26,7 @@ aaa.1.wpa.psk=54645654546
 aaa.1.wpa=3
 aaa.2.br.devname=br0
 aaa.2.devname=ath1
+# lol
 aaa.2.driver=madwifi
 aaa.2.ssid=vport
 aaa.2.status=disabled
@@ -59,6 +60,31 @@ func TestGenerateSort(t *testing.T) {
 	}
 }
 
+func TestConsume(t *testing.T) {
+	obj2, err := Parse([]byte(`
+		aaa.1.br.devname=welpers
+		kek.e=1
+		a=6
+	`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, err := Parse([]byte(basicInput))
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj.Consume(obj2)
+	if obj.Get("aaa").Get("1").Get("br").Get("devname").Value != "welpers" {
+		t.Error("Bad value")
+	}
+	if obj.Get("kek").Get("e").Value != "1" {
+		t.Error("Bad value")
+	}
+	if obj.Get("a").Value != "6" {
+		t.Error("Bad value")
+	}
+}
+
 func TestGenerate(t *testing.T) {
 	obj, err := Parse([]byte(basicInput))
 	if err != nil {
@@ -69,6 +95,9 @@ func TestGenerate(t *testing.T) {
 	outStr := strings.Join(out, "\n")
 
 	for _, line := range strings.Split(basicInput, "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
 		if !strings.Contains(outStr, strings.TrimSpace(line)) {
 			t.Error("Output is missing", line)
 		}
