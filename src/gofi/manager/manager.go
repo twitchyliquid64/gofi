@@ -25,8 +25,8 @@ const (
 	StateManaged
 )
 
-// ap represents the state of an ap.
-type ap interface {
+// AP represents the controller state of an access point.
+type AP interface {
 	MAC() [6]byte
 	GetState() int
 	SetState(int)
@@ -37,11 +37,11 @@ type ap interface {
 	SetConfigVersion(string)
 }
 
-type discoveryStateInitialiser func(string, string, *packet.Discovery) (ap, *adopt.Config, error)
+type discoveryStateInitialiser func(string, string, *packet.Discovery) (AP, *adopt.Config, error)
 
 // Manager handles controller state.
 type Manager struct {
-	MacAddrToKey map[[6]byte]ap
+	MacAddrToKey map[[6]byte]AP
 
 	localAddr        string
 	httpListenerAddr string
@@ -52,7 +52,7 @@ type Manager struct {
 }
 
 // defaultStateInitializer stores AP state in memory.
-func defaultStateInitializer(localAddr, listenerAddr string, discoveryPkt *packet.Discovery) (ap, *adopt.Config, error) {
+func defaultStateInitializer(localAddr, listenerAddr string, discoveryPkt *packet.Discovery) (AP, *adopt.Config, error) {
 	discoveryPkt.Debug()
 	adoptCfg := adopt.NewConfig(strings.Split(discoveryPkt.IPInfo.String(), ":")[0]+":22", localAddr+listenerAddr, "ubnt")
 	return &BasicClient{
@@ -65,7 +65,7 @@ func defaultStateInitializer(localAddr, listenerAddr string, discoveryPkt *packe
 // New creates a new AP manager (controller state).
 func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser) (*Manager, error) {
 	m := &Manager{
-		MacAddrToKey:         map[[6]byte]ap{},
+		MacAddrToKey:         map[[6]byte]AP{},
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: defaultStateInitializer,
@@ -150,7 +150,7 @@ func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 }
 
 // handles an inform packet with a noop when no action needs to be taken.
-func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint AP, d []byte) ([]byte, error) {
 	var err error
 
 	reply := informPkt.CloneForReply()
@@ -163,7 +163,7 @@ func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt
 }
 
 // handles an inform by generating a response to set the configuration.
-func (m *Manager) handleInformSendConfig(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint ap, d []byte) ([]byte, error) {
+func (m *Manager) handleInformSendConfig(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint AP, d []byte) ([]byte, error) {
 	reply := informPkt.CloneForReply()
 	fmt.Printf("[INFORM] [%x] Sending system configuration\n", accessPoint.MAC())
 	newSysConf, err := m.networkConfig.GenerateSysConf(informPayload.ModelName, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
@@ -202,7 +202,7 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 	return b, nil
 }
 
-func setAPConfigDirty(accessPoint ap) error {
+func setAPConfigDirty(accessPoint AP) error {
 	r, err := GenerateRandomBytes(8)
 	if err != nil {
 		return err
