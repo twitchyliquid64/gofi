@@ -119,7 +119,7 @@ type Station struct {
 	PowerSaving bool `json:"state_pwrmgt"`
 }
 
-// UnpackInform decodes a JSON inform payload representing a discoveryResponse packet
+// UnpackInform decodes a JSON inform payload
 func UnpackInform(d []byte) (*InformData, error) {
 	var out InformData
 	return &out, json.Unmarshal(d, &out)

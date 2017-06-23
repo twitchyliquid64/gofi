@@ -5,7 +5,8 @@ import (
 	"errors"
 )
 
-// PKCS7 padding.
+
+// PKCS7 padding. Credit to: https://github.com/go-web/tokenizer/blob/master/pkcs7.go
 
 // PKCS7 errors.
 var (

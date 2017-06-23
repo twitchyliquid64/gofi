@@ -15,6 +15,8 @@ import (
 )
 
 // Inform captures the information contained in an inform packet.
+// Actual data stored in the payload is represented as JSON and can be
+// decoded with other methods in this package.
 type Inform struct {
 	Version uint32
 	APMAC   [6]byte
@@ -86,6 +88,7 @@ func (i *Inform) Marshal(key []byte) ([]byte, error) {
 	return buff.Bytes(), nil
 }
 
+// performs PKCS7 padding and AES encryption on the given data.
 func encrypt(data, key, iv []byte) ([]byte, error) {
 	d, err := pkcs7Pad(data, aes.BlockSize)
 	if err != nil {
@@ -124,6 +127,7 @@ func (i *Inform) Payload(key []byte) ([]byte, error) {
 	return i.Data, nil
 }
 
+// Called internally to reverse Zlib compression on i.Data.
 func (i *Inform) decompressZlib() error {
 	b := bytes.NewReader(i.Data)
 
@@ -140,6 +144,7 @@ func (i *Inform) decompressZlib() error {
 	return nil
 }
 
+// Called internally to reverse Snappy compression on i.Data.
 func (i *Inform) decompressSnappy() error {
 	var err error
 	i.Data, err = snappy.Decode(i.Data, i.Data)
@@ -165,6 +170,7 @@ func (i *Inform) decrypt(key []byte) error {
 }
 
 // InformDecode decodes an inform packet.
+// use .Payload() to extract the contents of the packet.
 func InformDecode(r io.Reader) (*Inform, error) {
 	pkt := &Inform{}
 

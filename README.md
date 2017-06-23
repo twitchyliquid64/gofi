@@ -10,7 +10,7 @@ features with very tiny CPU/Memory/Disk requirements.
 Is this legal?
 --------------
 
-I emailed Ubiquiti and they said they were fine with its public existance.
+I emailed Ubiquiti and they said they were fine with gofi being publically available, and that they are aware of many similar projects. So go for it!
 
 
 How do I build?
@@ -31,8 +31,9 @@ TODO talk about the config file
 ```./controller```
 
 
-LICENSE
+LICENSE (MIT)
 --------------
+
 Copyright (c) 2017 twitchyliquid64
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

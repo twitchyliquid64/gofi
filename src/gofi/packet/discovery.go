@@ -20,6 +20,7 @@ const (
 )
 
 // Discovery represents the information in a discovery packet.
+// Not all fields implemented.
 type Discovery struct {
 	PktSize uint16
 	RawTLVs []*TLV `json:"-"`
@@ -34,6 +35,7 @@ type Discovery struct {
 	UptimeSecs uint32
 }
 
+// Called internally to parse raw TLV values into fields in the Discover struct.
 func (d *Discovery) unpack() error {
 	for _, tlv := range d.RawTLVs {
 		//fmt.Printf("TLV %d is %x: [%d]%s\n", i, tlv.Kind, tlv.Length, tlv.Payload)

@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// NOTE: Deprecated method. Don't do this.
 func applyConfig(addr, pass string) error {
 	c := &ssh.ClientConfig{User: "ubnt", HostKeyCallback: ssh.InsecureIgnoreHostKey()}
 	c.Auth = append(c.Auth, ssh.Password(pass))
@@ -39,6 +40,7 @@ func applyConfig(addr, pass string) error {
 	return err
 }
 
+// NOTE: Deprecated method. Don't do this.
 func setSystemConfig(addr, pass, cfg string) error {
 	c := &ssh.ClientConfig{User: "ubnt", HostKeyCallback: ssh.InsecureIgnoreHostKey()}
 	c.Auth = append(c.Auth, ssh.Password(pass))
@@ -66,6 +68,7 @@ func setSystemConfig(addr, pass, cfg string) error {
 }
 
 // GetSysConfig returns the currently applied system configuration.
+// Probably dont use this approach.
 func GetSysConfig(addr, pass string) ([]byte, error) {
 	c := &ssh.ClientConfig{User: "ubnt", HostKeyCallback: ssh.InsecureIgnoreHostKey()}
 	c.Auth = append(c.Auth, ssh.Password(pass))

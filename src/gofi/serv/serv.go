@@ -1,5 +1,7 @@
 package serv
 
+// Compartmentizes network request/response logic
+
 import (
 	"fmt"
 	"gofi/packet"

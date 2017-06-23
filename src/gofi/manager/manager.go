@@ -1,5 +1,7 @@
 package manager
 
+// Implements main controller logic.
+
 import (
 	"crypto/rand"
 	"encoding/hex"
