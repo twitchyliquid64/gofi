@@ -16,6 +16,8 @@ I emailed Ubiquiti and they said they were fine with gofi being publically avail
 How do I build?
 ----------------
 
+First off, make sure you have [Go](https://golang.org/doc/install) installed.
+
 ```shell
 git clone https://github.com/twitchyliquid64/gofi
 cd gofi
