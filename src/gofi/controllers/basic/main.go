@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"gofi/manager"
+	"gofi/packet"
 	"log"
+	"net/http"
 	"os"
 )
 
@@ -14,8 +17,12 @@ var do5G = flag.Bool("enable_5g", true, "Make network available on 5G as well as
 var bandSteer = flag.Bool("enable_bandsteering", false, "Steer clients to 5G network")
 var localAddress = flag.String("addr", "", "(optional) Controller LAN IP - autodetected if not set")
 var configPath = flag.String("statefile", "", "Path to location to store state")
+var infoServer = flag.String("infoserv", "", "Address to host the infoserv at. Infoserv disabled if not provided.")
+
+var lastInformForMAC map[string]*packet.InformData
 
 func main() {
+	lastInformForMAC = map[string]*packet.InformData{}
 	flag.Parse()
 
 	errLoad := loadConfig(*configPath)
@@ -40,8 +47,27 @@ func main() {
 	}
 
 	log.Printf("Controller will run on %s\n", controllerAddr)
+	informChan := make(chan *packet.InformData, 5)
+	go func() {
+		for i := range informChan {
+			lastInformForMAC[i.Mac] = i
+		}
+	}()
 
-	manager, err := manager.New(":8421", controllerAddr, nil, onDiscoveryPacket, onControllerDoesntKnowAP)
+	if *infoServer != "" {
+		fmt.Println("Infoserver will run on", *infoServer)
+		h := http.NewServeMux()
+		h.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			e := json.NewEncoder(rw)
+			e.Encode(lastInformForMAC)
+		})
+		go func() {
+			fmt.Println(http.ListenAndServe(*infoServer, h))
+		}()
+	}
+
+	manager, err := manager.New(":8421", controllerAddr, nil, onDiscoveryPacket, onControllerDoesntKnowAP, informChan)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

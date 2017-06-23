@@ -54,7 +54,7 @@ func main() {
 		})
 	}
 
-	manager, err := manager.New(":8421", controllerAddr, c, nil, nil)
+	manager, err := manager.New(":8421", controllerAddr, c, nil, nil, nil)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -63,6 +63,8 @@ Basic controller is identical to statelessController, except it stores the state
 access points (it has the credentials to continue where it left off). All parameters are the same except you can specify the path to the state file.
 If you do not, controllerState.json will be used.
 
+In addition, you can turn on a HTTP server which will serv the last known state for each of your APs. Pass a listener address to turn this on.
+
 
 Usage:
 
@@ -74,6 +76,8 @@ Usage of ./basicController:
     	Make network available on 5G as well as 2.4G (default true)
   -enable_bandsteering
     	Steer clients to 5G network
+  -infoserv string
+    	Address to host the infoserv at. Infoserv disabled if not provided.
   -pw string
     	Network password (default "fiog")
   -ssid string
@@ -84,7 +88,7 @@ Usage of ./basicController:
 
 Example:
 
-```./basicController -enable_5g -enable_bandsteering -ssid "silly_example" -pw "mynetworkpassword"```
+```./basicController -enable_5g -enable_bandsteering -ssid "silly_example" -pw "mynetworkpassword" -infoserv ":8080"```
 
 
 LICENSE (MIT)

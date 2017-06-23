@@ -58,16 +58,19 @@ type Manager struct {
 
 	discoveryInitializer discoveryStateInitialiser
 	apDiscoverer         unknownAPStateInitialiser
+	informChan           chan *packet.InformData
 }
 
 // New creates a new AP manager (controller state).
-func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser, apInitializer unknownAPStateInitialiser) (*Manager, error) {
+func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser,
+	apInitializer unknownAPStateInitialiser, informChan chan *packet.InformData) (*Manager, error) {
 	m := &Manager{
 		MacAddrToKey:         map[[6]byte]AP{},
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: stateInitializer,
 		apDiscoverer:         apInitializer,
+		informChan:           informChan,
 	}
 	if stateInitializer == nil {
 		m.discoveryInitializer = func(localAddr, listenerAddr string, discoveryPkt *packet.Discovery) (AP, *adopt.Config, error) {
@@ -156,6 +159,9 @@ func (m *Manager) HandleInform(remoteAddr string, informPkt *packet.Inform) ([]b
 	informPayload, err := packet.UnpackInform(d)
 	if err != nil {
 		return nil, err
+	}
+	if m.informChan != nil {
+		m.informChan <- informPayload
 	}
 	//pretty.Print(informPayload)
 
