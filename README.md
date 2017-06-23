@@ -20,7 +20,9 @@ How do I build?
 git clone https://github.com/twitchyliquid64/gofi
 cd gofi
 export GOPATH=`pwd`
-go build gofi/controller
+
+# A very basic, stateless controller
+go build -o statelessController gofi/controllers/stateless
 ```
 
 How do I run?

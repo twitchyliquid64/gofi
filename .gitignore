@@ -1,4 +1,6 @@
 /controller
+/statelessController
+/basicController
 
 /bin/*
 /pkg/*
