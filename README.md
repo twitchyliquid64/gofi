@@ -28,9 +28,30 @@ go build -o statelessController gofi/controllers/stateless
 How do I run?
 ---------------
 
-TODO talk about the config file
+There are two controllers available, statelessController and basicController.
 
-```./controller```
+Stateless controller is super simple, you start it on the command line and it will adopt all APs. You pass in network information on the command line, and it
+will configure ALL APs to use those. It is stateless, so it will leave the APs with default credentials, and if it is ever restarted re-adopt and reconfigure them.
+
+Usage:
+
+```
+Usage of ./statelessController:
+  -addr string
+    	Controller LAN IP - autodetected if not set
+  -enable_5g
+    	Make network available on 5G as well as 2.4G (default true)
+  -enable_bandsteering
+    	Steer clients to 5G network
+  -pw string
+    	Network password (default "fiog")
+  -ssid string
+    	Network name (default "gofi")
+```
+
+Example:
+
+```./statelessController -enable_5g -enable_bandsteering -ssid "silly_example" -pw "mynetworkpassword"```
 
 
 LICENSE (MIT)
