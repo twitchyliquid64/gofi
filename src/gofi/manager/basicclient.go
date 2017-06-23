@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"gofi/config"
 	"net"
 	"strings"
 )
@@ -12,11 +13,17 @@ type BasicClient struct {
 	MACAddr       [6]byte
 	IP            net.Addr
 	CfgVersion    string
+	Configuration *config.Config
 }
 
 // MAC returns the MAC address of the AP.
 func (c *BasicClient) MAC() [6]byte {
 	return c.MACAddr
+}
+
+// GetConfig returns a structure describing the configuration of the AP.
+func (c *BasicClient) GetConfig() *config.Config {
+	return c.Configuration
 }
 
 // SetState is called when the AP transistions to a new state.

@@ -12,8 +12,6 @@ import (
 	"gofi/packet"
 	"gofi/serv"
 	"strings"
-
-	"github.com/kylelemons/godebug/pretty"
 )
 
 // States which can be passed to SetState()
@@ -35,6 +33,7 @@ type AP interface {
 	GetIP() string
 	GetConfigVersion() string
 	SetConfigVersion(string)
+	GetConfig() *config.Config
 }
 
 type discoveryStateInitialiser func(string, string, *packet.Discovery) (AP, *adopt.Config, error)
@@ -51,28 +50,27 @@ type Manager struct {
 	discoveryInitializer discoveryStateInitialiser
 }
 
-// defaultStateInitializer stores AP state in memory.
-func defaultStateInitializer(localAddr, listenerAddr string, discoveryPkt *packet.Discovery) (AP, *adopt.Config, error) {
-	discoveryPkt.Debug()
-	adoptCfg := adopt.NewConfig(strings.Split(discoveryPkt.IPInfo.String(), ":")[0]+":22", localAddr+listenerAddr, "ubnt")
-	return &BasicClient{
-		EncryptionKey: adoptCfg.Key,
-		MACAddr:       discoveryPkt.MAC,
-		IP:            discoveryPkt.IPInfo,
-	}, adoptCfg, nil
-}
-
 // New creates a new AP manager (controller state).
 func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser) (*Manager, error) {
 	m := &Manager{
 		MacAddrToKey:         map[[6]byte]AP{},
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
-		discoveryInitializer: defaultStateInitializer,
+		discoveryInitializer: stateInitializer,
 		networkConfig:        conf,
 	}
-	if stateInitializer != nil {
-		m.discoveryInitializer = stateInitializer
+	if stateInitializer == nil {
+		m.discoveryInitializer = func(localAddr, listenerAddr string, discoveryPkt *packet.Discovery) (AP, *adopt.Config, error) {
+			discoveryPkt.Debug()
+			adoptCfg := adopt.NewConfig(strings.Split(discoveryPkt.IPInfo.String(), ":")[0]+":22", localAddr+listenerAddr, "ubnt")
+			return &BasicClient{
+				EncryptionKey: adoptCfg.Key,
+				MACAddr:       discoveryPkt.MAC,
+				IP:            discoveryPkt.IPInfo,
+				Configuration: conf,
+			}, adoptCfg, nil
+		}
+
 	}
 
 	serv, err := serv.New(m, httpListenerAddr)
@@ -133,7 +131,7 @@ func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	pretty.Print(informPayload)
+	//pretty.Print(informPayload)
 
 	if informPayload.ConfigVersion != accessPoint.GetConfigVersion() {
 		if accessPoint.GetState() == StateAdopted {
@@ -177,7 +175,7 @@ func (m *Manager) handleInformSendConfig(informPayload *packet.InformData, infor
 		return nil, err
 	}
 	accessPoint.SetState(StateManaged)
-	fmt.Println(newSysConf)
+	//fmt.Println(newSysConf)
 	reply.Data, err = packet.MakeConfigUpdate(newSysConf, mgmtConf, accessPoint.GetConfigVersion())
 	if err != nil {
 		return nil, err
