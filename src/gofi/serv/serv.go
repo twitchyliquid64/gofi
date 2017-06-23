@@ -13,7 +13,7 @@ import (
 )
 
 type informHandler interface {
-	HandleInform(*packet.Inform) ([]byte, error)
+	HandleInform(string, *packet.Inform) ([]byte, error)
 }
 
 // Serv represents a running server
@@ -67,7 +67,7 @@ func (s *Serv) makeHTTPServer(listener string) {
 		if err != nil {
 			fmt.Println("Error decoding Inform: ", err)
 		} else {
-			data, err := s.informHandler.HandleInform(informPkt)
+			data, err := s.informHandler.HandleInform(r.RemoteAddr, informPkt)
 			if err != nil {
 				fmt.Printf("HandleInform() err: %s\n", err)
 				return

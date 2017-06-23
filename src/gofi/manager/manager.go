@@ -36,7 +36,17 @@ type AP interface {
 	GetConfig() *config.Config
 }
 
+// discoveryStateInitialiser is the spec for the function which is called when the manager recieves a discovery
+// packet.
+//
+// If err is non-nil, all other data will be discarded and processing of the discovery will be aborted.
+// If *adopt.Config is nil, the controller will not be adopted, but will be managed by the Manager using the
+// information provided by the returned AP object.
 type discoveryStateInitialiser func(string, string, *packet.Discovery) (AP, *adopt.Config, error)
+
+// unknownAPStateInitialiser is the spec for the function which is called when the manager recieves a Inform
+// packet, but does not understand how to process it because it has no cached AP object.
+type unknownAPStateInitialiser func(string, *packet.Inform) (AP, error)
 
 // Manager handles controller state.
 type Manager struct {
@@ -45,19 +55,19 @@ type Manager struct {
 	localAddr        string
 	httpListenerAddr string
 	serv             *serv.Serv
-	networkConfig    *config.Config
 
 	discoveryInitializer discoveryStateInitialiser
+	apDiscoverer         unknownAPStateInitialiser
 }
 
 // New creates a new AP manager (controller state).
-func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser) (*Manager, error) {
+func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializer discoveryStateInitialiser, apInitializer unknownAPStateInitialiser) (*Manager, error) {
 	m := &Manager{
 		MacAddrToKey:         map[[6]byte]AP{},
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: stateInitializer,
-		networkConfig:        conf,
+		apDiscoverer:         apInitializer,
 	}
 	if stateInitializer == nil {
 		m.discoveryInitializer = func(localAddr, listenerAddr string, discoveryPkt *packet.Discovery) (AP, *adopt.Config, error) {
@@ -70,13 +80,19 @@ func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializ
 				Configuration: conf,
 			}, adoptCfg, nil
 		}
+	}
 
+	if apInitializer == nil {
+		m.apDiscoverer = func(ip string, i *packet.Inform) (AP, error) {
+			return nil, errors.New("Unknown AP " + hex.EncodeToString(i.APMAC[:]) + " on " + ip)
+		}
 	}
 
 	serv, err := serv.New(m, httpListenerAddr)
 	if err != nil {
 		return nil, err
 	}
+
 	m.serv = serv
 
 	return m, nil
@@ -100,9 +116,14 @@ func (m *Manager) Run() error {
 					fmt.Printf("[DISCOVERY] Aborting processing of discovery from %s\n", discoveryPkt.IPInfo)
 					continue
 				}
+				m.MacAddrToKey[accessPoint.MAC()] = accessPoint
+
+				if adoptCfg == nil {
+					break
+				}
 				setAPConfigDirty(accessPoint)
 				accessPoint.SetState(StateAdopting)
-				m.MacAddrToKey[accessPoint.MAC()] = accessPoint
+
 				adoptErr := adopt.Adopt(adoptCfg)
 				if adoptErr != nil {
 					fmt.Printf("[ADOPT] [%x] Adopt failed: %s\n", discoveryPkt.MAC, adoptErr)
@@ -116,10 +137,15 @@ func (m *Manager) Run() error {
 }
 
 // HandleInform is called by the server when an inform packet is recieved.
-func (m *Manager) HandleInform(informPkt *packet.Inform) ([]byte, error) {
+func (m *Manager) HandleInform(remoteAddr string, informPkt *packet.Inform) ([]byte, error) {
 	accessPoint, apKnown := m.MacAddrToKey[informPkt.APMAC]
 	if !apKnown {
-		return nil, errors.New("AP is not known")
+		var err error
+		accessPoint, err = m.apDiscoverer(remoteAddr, informPkt)
+		if err != nil {
+			return nil, err
+		}
+		m.MacAddrToKey[informPkt.APMAC] = accessPoint
 	}
 
 	d, err := informPkt.Payload(accessPoint.AuthKey())
@@ -164,13 +190,13 @@ func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt
 func (m *Manager) handleInformSendConfig(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint AP, d []byte) ([]byte, error) {
 	reply := informPkt.CloneForReply()
 	fmt.Printf("[INFORM] [%x] Sending system configuration\n", accessPoint.MAC())
-	newSysConf, err := m.networkConfig.GenerateSysConf(informPayload.ModelName, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
+	newSysConf, err := accessPoint.GetConfig().GenerateSysConf(informPayload.ModelName, accessPoint.GetConfigVersion()) //Make modifications based on desired settings
 	if err != nil {
 		return nil, err
 	}
 
 	var mgmtConf string
-	mgmtConf, err = m.networkConfig.GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
+	mgmtConf, err = accessPoint.GetConfig().GenerateMgmtConf(hex.EncodeToString(accessPoint.AuthKey()), accessPoint.GetConfigVersion(), m.localAddr, m.httpListenerAddr)
 	if err != nil {
 		return nil, err
 	}
