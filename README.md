@@ -6,6 +6,13 @@ gofi
 Go-fi is easy to build and deploy, providing basic network management
 features with very tiny CPU/Memory/Disk requirements.
 
+What APs do you support?
+--------------
+
+This has been tested on UAP-AC-LR and should work on UAP-AC-PRO. No others have been tested but have a reasonable chance of working.
+
+I would be happy to implement / get working any others if you send them my way :)
+
 
 Is this legal?
 --------------
@@ -36,8 +43,7 @@ There are two controllers available, statelessController and basicController.
 
 **statlessController**
 
-Stateless controller is super simple, you start it on the command line and it will adopt all APs. You pass in network information on the command line, and it
-will configure ALL APs to use those. It is stateless, so it will leave the APs with default credentials, and if it is ever restarted re-adopt and reconfigure them.
+Stateless controller is super simple, you start it on the command line and it will adopt all APs. You pass in network information on the command line, and it will configure ALL APs to use those. It is stateless, so it will leave the APs with default credentials, and if it is ever restarted re-adopt and reconfigure them.
 
 Usage:
 
@@ -61,8 +67,7 @@ Example:
 
 **basicController**
 
-Basic controller is identical to statelessController, except it stores the state of the APs in a file, so upon restart it does not need to re-adopt the
-access points (it has the credentials to continue where it left off). All parameters are the same except you can specify the path to the state file.
+Basic controller is identical to statelessController, except it stores the state of the APs in a file, so upon restart it does not need to re-adopt the access points (it has the credentials to continue where it left off). All parameters are the same except you can specify the path to the state file.
 If you do not, controllerState.json will be used.
 
 In addition, you can turn on a HTTP server which will serv the last known state for each of your APs. Pass a listener address to turn this on.
