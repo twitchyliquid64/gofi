@@ -6,13 +6,24 @@ import (
 	"strings"
 )
 
+// Network setups
+const (
+	WpaPsk       = 0
+	WpaEapRadius = 1
+)
+
 // Network represents configuration for a wireless SSID.
 type Network struct {
+	Kind     int
 	SSID     string
 	Pass     string
 	Is5Ghz   bool
 	NoBeacon bool
 	Channel  int
+
+	RadiusIP     string
+	RadiusPort   int
+	RadiusSecret string
 }
 
 // band steering modes
@@ -193,7 +204,7 @@ func (b *Config) GenerateSysConf(modelName, configVersion string) (string, error
 	}
 
 	if len(b.Networks) > 2 {
-		return "", errors.New("We do not currently support more than 2 networks.")
+		return "", errors.New("we do not currently support more than 2 networks")
 		// To do that, we have to implement all of this nonsense
 		// # radio.2.virtual.1.devname=ath2
 		// # radio.2.virtual.1.status=enabled
@@ -279,6 +290,19 @@ func (b *Config) applySysConf(config *Section, configVersion string) error {
 		if net.Channel != 0 {
 			netSpecific.Get("wireless").Get(index).Get("channel").SetVal(strconv.Itoa(net.Channel))
 		}
+
+		switch net.Kind {
+		case WpaEapRadius:
+			netSpecific.Get("aaa").Get(index).Get("radius").Get("acct").Get("1").Get("ip").SetVal(net.RadiusIP)
+			netSpecific.Get("aaa").Get(index).Get("radius").Get("acct").Get("1").Get("secret").SetVal(net.RadiusSecret)
+			netSpecific.Get("aaa").Get(index).Get("radius").Get("acct").Get("1").Get("port").SetVal(strconv.Itoa(net.RadiusPort))
+			netSpecific.Get("aaa").Get(index).Get("radius").Get("auth").Get("1").Get("ip").SetVal(net.RadiusIP)
+			netSpecific.Get("aaa").Get(index).Get("radius").Get("auth").Get("1").Get("secret").SetVal(net.RadiusSecret)
+			netSpecific.Get("aaa").Get(index).Get("radius").Get("auth").Get("1").Get("port").SetVal(strconv.Itoa(net.RadiusPort))
+
+			netSpecific.Get("aaa").Get(index).Get("wpa").Get("key").Get("1").Get("mgmt").SetVal("WPA-EAP")
+		}
+
 		config.Consume(netSpecific)
 	}
 
