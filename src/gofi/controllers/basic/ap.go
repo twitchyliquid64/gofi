@@ -70,6 +70,8 @@ func (a *ap) GetConfig() *config.Config {
 			Enabled: *bandSteer,
 			Mode:    config.SteerPrefer5G,
 		},
+		Txpower: *txPower,
+		MinRSSI: *minRSSI,
 	}
 
 	if *do5G {

@@ -42,6 +42,8 @@ type SteerSettings struct {
 type Config struct {
 	Networks  []Network
 	Bandsteer SteerSettings
+	Txpower   int
+	MinRSSI   int
 }
 
 var baseTwoRadioDevice = `
@@ -132,7 +134,9 @@ radio.1.rate.auto=enabled
 radio.1.rate.mcs=auto
 radio.1.status=enabled
 radio.1.txpower=auto
-radio.1.txpower_mode=auto
+radio.1.hard_noisefloor.status=disabled
+radio.1.ubntroam.status=disabled
+radio.1.bgscan.status=disabled
 
 # Radio 2 defaults - 5.0Ghz
 radio.2.ack.auto=disabled
@@ -151,7 +155,9 @@ radio.2.rate.auto=enabled
 radio.2.rate.mcs=auto
 radio.2.status=enabled
 radio.2.txpower=auto
-radio.2.txpower_mode=auto
+radio.2.hard_noisefloor.status=disabled
+radio.2.ubntroam.status=disabled
+radio.2.bgscan.status=disabled
 # radio.2.virtual.1.devname=ath2
 # radio.2.virtual.1.status=enabled
 
@@ -192,6 +198,8 @@ wireless.XREPX.vport=disabled
 wireless.XREPX.vwire=disabled
 wireless.XREPX.wds=disabled
 wireless.XREPX.wmm=enabled
+wireless.XREPX.puren=0
+wireless.XREPX.pureg=1
 `
 
 // GenerateSysConf ingests the devices current config and modifies it based on the fields in Config.
@@ -315,6 +323,34 @@ func (b *Config) applySysConf(config *Section, configVersion string) error {
 		case SteerBalance:
 			config.Get("bandsteering").Get("mode").SetVal("equal")
 		}
+	}
+
+	if b.Txpower != 0 {
+		config.Get("radio").Get("1").Get("txpower").SetVal(strconv.Itoa(b.Txpower))
+		config.Get("radio").Get("2").Get("txpower").SetVal(strconv.Itoa(b.Txpower))
+		config.Get("radio").Get("1").Get("txpower_mode").SetVal("custom")
+		config.Get("radio").Get("2").Get("txpower_mode").SetVal("custom")
+	} else {
+		config.Get("radio").Get("1").Get("txpower_mode").SetVal("auto")
+		config.Get("radio").Get("2").Get("txpower_mode").SetVal("auto")
+	}
+
+	if b.MinRSSI != 0 {
+		config.Get("stamgr").Get("1").Get("minrssi").Get("status").SetVal("true")
+		config.Get("stamgr").Get("1").Get("minrssi").Get("rssi").SetVal(strconv.Itoa(b.MinRSSI))
+		config.Get("stamgr").Get("1").Get("radio").SetVal("ng")
+		config.Get("stamgr").Get("1").Get("status").SetVal("true")
+		config.Get("stamgr").Get("1").Get("loadbalance").Get("status").SetVal("false")
+		config.Get("stamgr").Get("2").Get("minrssi").Get("status").SetVal("true")
+		config.Get("stamgr").Get("2").Get("minrssi").Get("rssi").SetVal(strconv.Itoa(b.MinRSSI))
+		config.Get("stamgr").Get("2").Get("radio").SetVal("na")
+		config.Get("stamgr").Get("2").Get("status").SetVal("true")
+		config.Get("stamgr").Get("2").Get("loadbalance").Get("status").SetVal("false")
+
+		config.Get("stamgr").Get("status").SetVal("enabled")
+		config.Get("stamgr").Get("interval").SetVal("10")
+		config.Get("ubntroam").Get("status").SetVal("disabled")    //ubntroam.status=disabled
+		config.Get("connectivity").Get("status").SetVal("enabled") //connectivity.status=enabled
 	}
 
 	return nil

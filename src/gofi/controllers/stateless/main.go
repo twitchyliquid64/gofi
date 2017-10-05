@@ -13,6 +13,8 @@ var ssid = flag.String("ssid", "gofi", "Network name")
 var password = flag.String("pw", "fiog", "Network password")
 var do5G = flag.Bool("enable_5g", true, "Make network available on 5G as well as 2.4G")
 var bandSteer = flag.Bool("enable_bandsteering", false, "Steer clients to 5G network")
+var txPower = flag.Int("tx", 0, "(optional) TX power in DB, defaults to auto")
+var minRSSI = flag.Int("min_rssi", 0, "(optional) Station RSSI at which it is deauthed, defaults to disabled")
 var localAddress = flag.String("addr", "", "Controller LAN IP - autodetected if not set")
 
 func main() {
@@ -44,6 +46,8 @@ func main() {
 			Enabled: *bandSteer,
 			Mode:    config.SteerPrefer5G,
 		},
+		Txpower: *txPower,
+		MinRSSI: *minRSSI,
 	}
 
 	if *do5G {
