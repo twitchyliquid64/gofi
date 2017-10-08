@@ -604,7 +604,7 @@ stamgr.2.minrssi.rssi=70
 stamgr.2.minrssi.status=true
 stamgr.2.radio=na
 stamgr.2.status=true
-stamgr.interval=10
+stamgr.interval=1
 stamgr.status=enabled
 syslog.file=/var/log/messages
 syslog.level=8
@@ -652,7 +652,8 @@ func TestBuildACLRMinRSSI(t *testing.T) {
 			Enabled: true,
 			Mode:    SteerBalance,
 		},
-		MinRSSI: 70,
+		MinRSSI:         70,
+		MinRSSIInterval: 1,
 	}
 	out, err := c.GenerateSysConf("UAP-AC-LR", "123") //Make modifications based on desired settings
 	if err != nil {

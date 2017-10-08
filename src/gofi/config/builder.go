@@ -40,10 +40,11 @@ type SteerSettings struct {
 
 // Config stores logical configuration of the network.
 type Config struct {
-	Networks  []Network
-	Bandsteer SteerSettings
-	Txpower   int
-	MinRSSI   int
+	Networks        []Network
+	Bandsteer       SteerSettings
+	Txpower         int
+	MinRSSI         int
+	MinRSSIInterval int
 }
 
 var baseTwoRadioDevice = `
@@ -348,7 +349,10 @@ func (b *Config) applySysConf(config *Section, configVersion string) error {
 		config.Get("stamgr").Get("2").Get("loadbalance").Get("status").SetVal("false")
 
 		config.Get("stamgr").Get("status").SetVal("enabled")
-		config.Get("stamgr").Get("interval").SetVal("10")
+		config.Get("stamgr").Get("interval").SetVal("2")
+		if b.MinRSSIInterval != 0 {
+			config.Get("stamgr").Get("interval").SetVal(strconv.Itoa(b.MinRSSIInterval))
+		}
 		config.Get("ubntroam").Get("status").SetVal("disabled")    //ubntroam.status=disabled
 		config.Get("connectivity").Get("status").SetVal("enabled") //connectivity.status=enabled
 	}
