@@ -45,17 +45,17 @@ type Interface struct {
 	Up         bool   `json:"up"`
 	Uptime     int    `json:"uptime"`
 
-	RxBytes     int `json:"rx_bytes"`
-	RxDropped   int `json:"rx_dropped"`
-	RxErrors    int `json:"rx_errors"`
-	RxMulticast int `json:"rx_multicast"`
-	RxPackets   int `json:"rx_packets"`
+	RxBytes     int64 `json:"rx_bytes"`
+	RxDropped   int64 `json:"rx_dropped"`
+	RxErrors    int64 `json:"rx_errors"`
+	RxMulticast int64 `json:"rx_multicast"`
+	RxPackets   int64 `json:"rx_packets"`
 
-	TxBytes     int `json:"tx_bytes"`
-	TxDropped   int `json:"tx_dropped"`
-	TxErrors    int `json:"tx_errors"`
-	TxMulticast int `json:"tx_multicast"`
-	TxPackets   int `json:"tx_packets"`
+	TxBytes     int64 `json:"tx_bytes"`
+	TxDropped   int64 `json:"tx_dropped"`
+	TxErrors    int64 `json:"tx_errors"`
+	TxMulticast int64 `json:"tx_multicast"`
+	TxPackets   int64 `json:"tx_packets"`
 }
 
 // RadioInfo describes a wireless interface on the device.
@@ -90,12 +90,12 @@ type Net struct {
 	Name    string `json:"name"`
 	Radio   string `json:"radio"`
 
-	RxBytes   int `json:"rx_bytes"`
-	TxBytes   int `json:"tx_bytes"`
-	RxErrors  int `json:"rx_errors"`
-	TxErrors  int `json:"tx_errors"`
-	RxPackets int `json:"rx_packets"`
-	TxPackets int `json:"tx_packets"`
+	RxBytes   int64 `json:"rx_bytes"`
+	TxBytes   int64 `json:"tx_bytes"`
+	RxErrors  int64 `json:"rx_errors"`
+	TxErrors  int64 `json:"tx_errors"`
+	RxPackets int64 `json:"rx_packets"`
+	TxPackets int64 `json:"tx_packets"`
 
 	Stations []Station `json:"sta_table"`
 }
