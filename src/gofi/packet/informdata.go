@@ -1,8 +1,10 @@
 package packet
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 )
@@ -133,6 +135,7 @@ type CommandData struct {
 	Cmd             string `json:"cmd,omitempty"`
 	DatetimeRFC3339 string `json:"datetime,omitempty"`
 	TimeStr         string `json:"time,omitempty"`
+	MacAddr         string `json:"mac,omitempty"`
 
 	Interval int `json:"interval,omitempty"`
 
@@ -152,6 +155,22 @@ func MakeLocate() ([]byte, error) {
 	return json.Marshal(CommandData{
 		Type:            "cmd",
 		Cmd:             "locate",
+		ServerTimestamp: unixMicroPSTString(),
+		DatetimeRFC3339: time.Now().Format(time.RFC3339),
+		TimeStr:         fmt.Sprint(time.Now().Unix()),
+	})
+}
+
+// MakeKickStation creates the payload section of a kick-sta command.
+func MakeKickStation(mac [6]byte) ([]byte, error) {
+	macStr := hex.EncodeToString([]byte{mac[0]}) + ":" + hex.EncodeToString([]byte{mac[1]}) + ":" + hex.EncodeToString([]byte{mac[2]}) + ":" +
+		hex.EncodeToString([]byte{mac[3]}) + ":" + hex.EncodeToString([]byte{mac[4]}) + ":" + hex.EncodeToString([]byte{mac[5]})
+	log.Printf("Mac: %s", macStr)
+
+	return json.Marshal(CommandData{
+		Type:            "cmd",
+		Cmd:             "kick-sta",
+		MacAddr:         macStr,
 		ServerTimestamp: unixMicroPSTString(),
 		DatetimeRFC3339: time.Now().Format(time.RFC3339),
 		TimeStr:         fmt.Sprint(time.Now().Unix()),

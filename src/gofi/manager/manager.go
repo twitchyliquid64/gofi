@@ -50,7 +50,8 @@ type unknownAPStateInitialiser func(string, *packet.Inform) (AP, error)
 
 // APAction represents a queued action to perform on an AP, such as locating or rebooting.
 type APAction struct {
-	Action string
+	Action     string
+	StationMac [6]byte
 }
 
 // Manager handles controller state.
@@ -197,6 +198,8 @@ func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt
 		switch action.Action {
 		case "locate":
 			reply.Data, err = packet.MakeLocate()
+		case "kick":
+			reply.Data, err = packet.MakeKickStation(action.StationMac)
 		default:
 			return nil, fmt.Errorf("unknown queued action: %s", action.Action)
 		}
@@ -245,6 +248,21 @@ func (m *Manager) LocateAP(mac [6]byte) error {
 	}
 	m.queuedActions[mac] = &APAction{
 		Action: "locate",
+	}
+	return nil
+}
+
+// KickStationFromAP queues a request to kick a client/station from the AP.
+func (m *Manager) KickStationFromAP(apMac, stationMac [6]byte) error {
+	if m.MacAddrToKey[apMac] == nil {
+		return errors.New("no such AP")
+	}
+	if m.queuedActions[apMac] != nil {
+		return errors.New("a queued event already exists")
+	}
+	m.queuedActions[apMac] = &APAction{
+		Action:     "kick",
+		StationMac: stationMac,
 	}
 	return nil
 }
