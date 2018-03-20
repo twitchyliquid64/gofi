@@ -48,9 +48,16 @@ type discoveryStateInitialiser func(string, string, *packet.Discovery) (AP, *ado
 // packet, but does not understand how to process it because it has no cached AP object.
 type unknownAPStateInitialiser func(string, *packet.Inform) (AP, error)
 
+// APAction represents a queued action to perform on an AP, such as locating or rebooting.
+type APAction struct {
+	Action string
+}
+
 // Manager handles controller state.
 type Manager struct {
 	MacAddrToKey map[[6]byte]AP
+
+	queuedActions map[[6]byte]*APAction
 
 	localAddr        string
 	httpListenerAddr string
@@ -66,6 +73,7 @@ func New(httpListenerAddr, localAddr string, conf *config.Config, stateInitializ
 	apInitializer unknownAPStateInitialiser, informChan chan *packet.InformData) (*Manager, error) {
 	m := &Manager{
 		MacAddrToKey:         map[[6]byte]AP{},
+		queuedActions:        map[[6]byte]*APAction{},
 		localAddr:            localAddr,
 		httpListenerAddr:     httpListenerAddr,
 		discoveryInitializer: stateInitializer,
@@ -182,9 +190,20 @@ func (m *Manager) HandleInform(remoteAddr string, informPkt *packet.Inform) ([]b
 // handles an inform packet with a noop when no action needs to be taken.
 func (m *Manager) handleNormalInform(informPayload *packet.InformData, informPkt *packet.Inform, accessPoint AP, d []byte) ([]byte, error) {
 	var err error
-
 	reply := informPkt.CloneForReply()
-	reply.Data, err = packet.MakeNoop(3)
+
+	if action, ok := m.queuedActions[accessPoint.MAC()]; ok {
+		delete(m.queuedActions, accessPoint.MAC())
+		switch action.Action {
+		case "locate":
+			reply.Data, err = packet.MakeLocate()
+		default:
+			return nil, fmt.Errorf("unknown queued action: %s", action.Action)
+		}
+	} else {
+		reply.Data, err = packet.MakeNoop(3)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +233,20 @@ func (m *Manager) handleInformSendConfig(informPayload *packet.InformData, infor
 	}
 	//fmt.Println(string(reply.Data))
 	return reply.Marshal(accessPoint.AuthKey())
+}
+
+// LocateAP queues a request to switch the AP into locate mode when it next checks in.
+func (m *Manager) LocateAP(mac [6]byte) error {
+	if m.MacAddrToKey[mac] == nil {
+		return errors.New("no such AP")
+	}
+	if m.queuedActions[mac] != nil {
+		return errors.New("a queued event already exists")
+	}
+	m.queuedActions[mac] = &APAction{
+		Action: "locate",
+	}
+	return nil
 }
 
 // GenerateRandomBytes returns securely generated random bytes.

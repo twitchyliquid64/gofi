@@ -102,7 +102,7 @@ type Net struct {
 
 // Station represents information about a station associated with the AP.
 type Station struct {
-	AuthTime   int    `json:"auth_time"`
+	AuthTime   int64  `json:"auth_time"`
 	Authorised bool   `json:"authorized"`
 	Hostname   string `json:"hostname"`
 	IP         string `json:"ip"`
@@ -130,6 +130,10 @@ type CommandData struct {
 	Type            string `json:"_type"`
 	ServerTimestamp string `json:"server_time_in_utc,omitempty"`
 
+	Cmd             string `json:"cmd,omitempty"`
+	DatetimeRFC3339 string `json:"datetime,omitempty"`
+	TimeStr         string `json:"time,omitempty"`
+
 	Interval int `json:"interval,omitempty"`
 
 	ConfigVersion    string `json:"cfgversion,omitempty"`
@@ -141,6 +145,17 @@ type CommandData struct {
 // MakeNoop creates the payload section of a noop response.
 func MakeNoop(pollDelay int) ([]byte, error) {
 	return json.Marshal(CommandData{Type: "noop", Interval: pollDelay})
+}
+
+// MakeLocate creates the payload section of a locate response.
+func MakeLocate() ([]byte, error) {
+	return json.Marshal(CommandData{
+		Type:            "cmd",
+		Cmd:             "locate",
+		ServerTimestamp: unixMicroPSTString(),
+		DatetimeRFC3339: time.Now().Format(time.RFC3339),
+		TimeStr:         fmt.Sprint(time.Now().Unix()),
+	})
 }
 
 // MakeConfigUpdate creates the payload section of a response which sets all configuration.
