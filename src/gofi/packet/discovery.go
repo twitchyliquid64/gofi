@@ -19,6 +19,9 @@ const (
 	Platform        uint8 = 0x0C
 )
 
+// ErrDiscoveryIncorrectHeader is returned if a packet is not a discovery packet.
+var ErrDiscoveryIncorrectHeader = errors.New("incorrect header")
+
 // Discovery represents the information in a discovery packet.
 // Not all fields implemented.
 type Discovery struct {
@@ -79,10 +82,10 @@ func DiscoveryDecode(addr *net.UDPAddr, pkt []byte) (*Discovery, error) {
 	magic := make([]byte, 2)
 	n, err := io.ReadFull(r, magic)
 	if n != 2 || err != nil {
-		return nil, errors.New("Could not read magic header")
+		return nil, errors.New("could not read magic header")
 	}
 	if magic[0] != 2 || magic[1] != 6 {
-		return nil, errors.New("Incorrect header")
+		return nil, ErrDiscoveryIncorrectHeader
 	}
 
 	if pktSizeErr := binary.Read(r, binary.BigEndian, &out.PktSize); pktSizeErr != nil {

@@ -124,6 +124,7 @@ func (i *Inform) Payload(key []byte) ([]byte, error) {
 			return nil, err
 		}
 	}
+	//fmt.Println(string(i.Data))
 	return i.Data, nil
 }
 

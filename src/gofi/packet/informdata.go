@@ -30,7 +30,50 @@ type InformData struct {
 	RadioInfo   []RadioInfo `json:"radio_table,omitempty"`
 	Nets        []Net       `json:"vap_table"`
 
+	Overheating bool   `json:"overheating"`
+	Ports       []Port `json:"port_table"`
+
 	IsDiscovery bool `json:"discovery_response,omitempty"`
+}
+
+// Port captures the information pertaining to a port on a switch.
+type Port struct {
+	Enabled bool `json:"enable"`
+	Up      bool `json:"up"`
+
+	IsUplink      bool   `json:"is_uplink"`
+	Media         string `json:"media"`
+	Speed         int    `json:"speed"`
+	POE           bool   `json:"port_poe"`
+	Autonegotiate bool   `json:"autoneg"`
+	STPPathCost   int    `json:"stp_pathcost"`
+	STPState      string `json:"stp_state"`
+
+	Dot1xMode   string `json:"dot1x_mode"`
+	Dot1xStatus string `json:"dot1x_status"`
+
+	MACTable []PortMACEntry `json:"mac_table"`
+
+	RxBytes     int64 `json:"rx_bytes"`
+	RxDropped   int64 `json:"rx_dropped"`
+	RxErrors    int64 `json:"rx_errors"`
+	RxMulticast int64 `json:"rx_multicast"`
+	RxPackets   int64 `json:"rx_packets"`
+	TxBytes     int64 `json:"tx_bytes"`
+	TxDropped   int64 `json:"tx_dropped"`
+	TxErrors    int64 `json:"tx_errors"`
+	TxMulticast int64 `json:"tx_multicast"`
+	TxPackets   int64 `json:"tx_packets"`
+}
+
+// PortMACEntry represents an entry on a port's MAC table.
+type PortMACEntry struct {
+	Age      int64  `json:"age"`
+	IP       string `json:"ip,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
+	MAC      string `json:"mac"`
+	Uptime   int64  `json:"uptime,omitempty"`
+	VLAN     int    `json:"vlan,omitempty"`
 }
 
 // Interface captures the interface information reported in a Inform packet.

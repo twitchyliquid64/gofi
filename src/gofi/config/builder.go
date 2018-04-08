@@ -38,6 +38,10 @@ type SteerSettings struct {
 	Mode    int
 }
 
+// SwitchSettings specifies options for any switches attached to the network.
+type SwitchSettings struct {
+}
+
 // Config stores logical configuration of the network.
 type Config struct {
 	Networks        []Network
@@ -45,6 +49,8 @@ type Config struct {
 	Txpower         int
 	MinRSSI         int
 	MinRSSIInterval int
+
+	SwitchConfig SwitchSettings
 }
 
 var baseTwoRadioDevice = `
@@ -220,6 +226,8 @@ func (b *Config) GenerateSysConf(modelName, configVersion string) (string, error
 	}
 
 	switch modelName {
+	case "USW-8P-60":
+		conf, err = Parse([]byte(basicSwitchConfig))
 	case "UAP-AC":
 		fallthrough
 	case "UAP-AC-LR":
@@ -231,9 +239,17 @@ func (b *Config) GenerateSysConf(modelName, configVersion string) (string, error
 	if err != nil {
 		return "", err
 	}
-	if err = b.applySysConf(conf, configVersion); err != nil {
-		return "", err
+	switch modelName {
+	case "USW-8P-60":
+		if err = b.applySwitchConf(conf, configVersion); err != nil {
+			return "", err
+		}
+	default:
+		if err = b.applySysConf(conf, configVersion); err != nil {
+			return "", err
+		}
 	}
+
 	var newSysConf string
 	newSysConf, err = conf.Serialize()
 	if err != nil {
