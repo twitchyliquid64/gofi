@@ -41,7 +41,7 @@ How do I run?
 
 There are two controllers available, statelessController and basicController.
 
-**statlessController**
+**statelessController**
 
 Stateless controller is super simple, you start it on the command line and it will adopt all APs. You pass in network information on the command line, and it will configure ALL APs to use those. It is stateless, so it will leave the APs with default credentials, and if it is ever restarted re-adopt and reconfigure them.
 
